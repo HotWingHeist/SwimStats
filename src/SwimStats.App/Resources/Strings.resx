@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" msdata:Ordinal="5" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>SwimStats</value>
+  </data>
+  <data name="Stroke" xml:space="preserve">
+    <value>Stroke</value>
+  </data>
+  <data name="Distance" xml:space="preserve">
+    <value>Distance</value>
+  </data>
+  <data name="Swimmers" xml:space="preserve">
+    <value>Swimmers</value>
+  </data>
+  <data name="ImportButton" xml:space="preserve">
+    <value>Import from SwimTrack</value>
+  </data>
+  <data name="ClearDataButton" xml:space="preserve">
+    <value>Clear All Data</value>
+  </data>
+  <data name="ChartTitle" xml:space="preserve">
+    <value>Performance over time</value>
+  </data>
+  <data name="TimeAxisTitle" xml:space="preserve">
+    <value>Time (mm:ss.ms)</value>
+  </data>
+  <data name="LegendTitle" xml:space="preserve">
+    <value>Swimmers</value>
+  </data>
+  <data name="ImportConfirmTitle" xml:space="preserve">
+    <value>Confirm Import</value>
+  </data>
+  <data name="ImportConfirmMessage" xml:space="preserve">
+    <value>This will import all swimmers and results from SwimTrack.\n\nThis may take several minutes. Continue?</value>
+  </data>
+  <data name="ImportCompleteTitle" xml:space="preserve">
+    <value>Import Complete</value>
+  </data>
+  <data name="ImportCompleteMessage" xml:space="preserve">
+    <value>Import complete!\n\nSwimmers imported: {0}\nResults imported: {1}</value>
+  </data>
+  <data name="ImportErrorTitle" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="ImportErrorMessage" xml:space="preserve">
+    <value>Import failed: {0}\n\n{1}</value>
+  </data>
+  <data name="ClearDataConfirmTitle" xml:space="preserve">
+    <value>Confirm Clear Data</value>
+  </data>
+  <data name="ClearDataConfirmMessage" xml:space="preserve">
+    <value>Are you sure you want to clear ALL data from the database?\n\nThis will delete all swimmers, events, and results. This action cannot be undone!</value>
+  </data>
+  <data name="ClearDataCompleteTitle" xml:space="preserve">
+    <value>Data Cleared</value>
+  </data>
+  <data name="ClearDataCompleteMessage" xml:space="preserve">
+    <value>All data has been cleared successfully.</value>
+  </data>
+  <data name="ClearDataErrorMessage" xml:space="preserve">
+    <value>Failed to clear data: {0}</value>
+  </data>
+  <data name="ImportingSwimmers" xml:space="preserve">
+    <value>Importing swimmers...</value>
+  </data>
+  <data name="ImportingResults" xml:space="preserve">
+    <value>Importing swim results...</value>
+  </data>
+  <data name="StartingImport" xml:space="preserve">
+    <value>Starting import...</value>
+  </data>
+  <data name="Date" xml:space="preserve">
+    <value>Date</value>
+  </data>
+  <data name="Time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="Stroke_Freestyle" xml:space="preserve">
+    <value>Freestyle</value>
+  </data>
+  <data name="Stroke_Backstroke" xml:space="preserve">
+    <value>Backstroke</value>
+  </data>
+  <data name="Stroke_Breaststroke" xml:space="preserve">
+    <value>Breaststroke</value>
+  </data>
+  <data name="Stroke_Butterfly" xml:space="preserve">
+    <value>Butterfly</value>
+  </data>
+  <data name="Stroke_IM" xml:space="preserve">
+    <value>IM</value>
+  </data>
+  <data name="IncludeTussentijden" xml:space="preserve">
+    <value>Include Intermediate Times</value>
+  </data>
+  <data name="PersonalRecords" xml:space="preserve">
+    <value>Personal Records</value>
+  </data>
+  <data name="Swimmer" xml:space="preserve">
+    <value>Swimmer</value>
+  </data>
+  <data name="BestTime" xml:space="preserve">
+    <value>Best Time</value>
+  </data>
+  <data name="SeasonalBest" xml:space="preserve">
+    <value>Season Best</value>
+  </data>
+  <data name="PreviousSeasonalBest" xml:space="preserve">
+    <value>Previous Season</value>
+  </data>
+  <data name="Rating" xml:space="preserve">
+    <value>Rating</value>
+  </data>
+  <data name="ClubBest" xml:space="preserve">
+    <value>Club Best</value>
+  </data>
+  <data name="ClubMedian" xml:space="preserve">
+    <value>Club Median</value>
+  </data>
+  <data name="ClubSlowest" xml:space="preserve">
+    <value>Club Slowest</value>
+  </data>
+</root>

@@ -1,0 +1,77 @@
+# .NET Build outputs
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+.vscode/
+.idea/
+
+# SQLite database files (user data)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+
+# Build results
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
+publish/
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Mac
+.DS_Store
+
+# User settings
+**/AppData/
+**/LocalAppData/
+
+# Compiled files
+*.dll
+*.exe
+*.pdb
+!bin/Debug/
+!bin/Release/
+
+# Backup files
+*.bak
+*~
+Backup*/
+UpgradeLog*.XML
+UpgradeLog*.htm
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+
+# ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# Visual Studio profiler
+*.psess
+*.vsp
+*.vspx
+
+# Fody
+FodyWeavers.xsd

@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" msdata:Ordinal="5" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>ZwemStats</value>
+  </data>
+  <data name="Stroke" xml:space="preserve">
+    <value>Slag</value>
+  </data>
+  <data name="Distance" xml:space="preserve">
+    <value>Afstand</value>
+  </data>
+  <data name="Swimmers" xml:space="preserve">
+    <value>Zwemmers</value>
+  </data>
+  <data name="ImportButton" xml:space="preserve">
+    <value>Importeren van SwimTrack</value>
+  </data>
+  <data name="ClearDataButton" xml:space="preserve">
+    <value>Alle Gegevens Wissen</value>
+  </data>
+  <data name="ChartTitle" xml:space="preserve">
+    <value>Prestaties in de tijd</value>
+  </data>
+  <data name="TimeAxisTitle" xml:space="preserve">
+    <value>Tijd (mm:ss.ms)</value>
+  </data>
+  <data name="LegendTitle" xml:space="preserve">
+    <value>Zwemmers</value>
+  </data>
+  <data name="ImportConfirmTitle" xml:space="preserve">
+    <value>Bevestig Import</value>
+  </data>
+  <data name="ImportConfirmMessage" xml:space="preserve">
+    <value>Dit importeert alle zwemmers en resultaten van SwimTrack.\n\nDit kan enkele minuten duren. Doorgaan?</value>
+  </data>
+  <data name="ImportCompleteTitle" xml:space="preserve">
+    <value>Import Voltooid</value>
+  </data>
+  <data name="ImportCompleteMessage" xml:space="preserve">
+    <value>Import voltooid!\n\nZwemmers geïmporteerd: {0}\nResultaten geïmporteerd: {1}</value>
+  </data>
+  <data name="ImportErrorTitle" xml:space="preserve">
+    <value>Fout</value>
+  </data>
+  <data name="ImportErrorMessage" xml:space="preserve">
+    <value>Import mislukt: {0}\n\n{1}</value>
+  </data>
+  <data name="ClearDataConfirmTitle" xml:space="preserve">
+    <value>Bevestig Gegevens Wissen</value>
+  </data>
+  <data name="ClearDataConfirmMessage" xml:space="preserve">
+    <value>Weet u zeker dat u ALLE gegevens uit de database wilt verwijderen?\n\nDit verwijdert alle zwemmers, evenementen en resultaten. Deze actie kan niet ongedaan worden gemaakt!</value>
+  </data>
+  <data name="ClearDataCompleteTitle" xml:space="preserve">
+    <value>Gegevens Gewist</value>
+  </data>
+  <data name="ClearDataCompleteMessage" xml:space="preserve">
+    <value>Alle gegevens zijn succesvol gewist.</value>
+  </data>
+  <data name="ClearDataErrorMessage" xml:space="preserve">
+    <value>Fout bij wissen van gegevens: {0}</value>
+  </data>
+  <data name="ImportingSwimmers" xml:space="preserve">
+    <value>Zwemmers importeren...</value>
+  </data>
+  <data name="ImportingResults" xml:space="preserve">
+    <value>Zwemresultaten importeren...</value>
+  </data>
+  <data name="StartingImport" xml:space="preserve">
+    <value>Import starten...</value>
+  </data>
+  <data name="Date" xml:space="preserve">
+    <value>Datum</value>
+  </data>
+  <data name="Time" xml:space="preserve">
+    <value>Tijd</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Taal</value>
+  </data>
+  <data name="Stroke_Freestyle" xml:space="preserve">
+    <value>Vrije slag</value>
+  </data>
+  <data name="Stroke_Backstroke" xml:space="preserve">
+    <value>Rugslag</value>
+  </data>
+  <data name="Stroke_Breaststroke" xml:space="preserve">
+    <value>Schoolslag</value>
+  </data>
+  <data name="Stroke_Butterfly" xml:space="preserve">
+    <value>Vlinderslag</value>
+  </data>
+  <data name="Stroke_IM" xml:space="preserve">
+    <value>Wisselslag</value>
+  </data>
+  <data name="IncludeTussentijden" xml:space="preserve">
+    <value>Tussentijden Opnemen</value>
+  </data>
+  <data name="PersonalRecords" xml:space="preserve">
+    <value>Persoonlijke Records</value>
+  </data>
+  <data name="Swimmer" xml:space="preserve">
+    <value>Zwemmer</value>
+  </data>
+  <data name="BestTime" xml:space="preserve">
+    <value>Beste Tijd</value>
+  </data>
+  <data name="SeasonalBest" xml:space="preserve">
+    <value>Seizoen Beste</value>
+  </data>
+  <data name="PreviousSeasonalBest" xml:space="preserve">
+    <value>Vorig Seizoen</value>
+  </data>
+  <data name="Rating" xml:space="preserve">
+    <value>Punten</value>
+  </data>
+  <data name="ClubBest" xml:space="preserve">
+    <value>Club Beste</value>
+  </data>
+  <data name="ClubMedian" xml:space="preserve">
+    <value>Club Mediaan</value>
+  </data>
+  <data name="ClubSlowest" xml:space="preserve">
+    <value>Club Langzaamste</value>
+  </data>
+</root>
