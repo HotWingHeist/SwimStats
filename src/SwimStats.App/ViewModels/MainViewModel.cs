@@ -753,7 +753,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private static double CalculateMedian(List<double> values)
+    internal static double CalculateMedian(List<double> values)
     {
         if (values == null || values.Count == 0)
             return 0;
