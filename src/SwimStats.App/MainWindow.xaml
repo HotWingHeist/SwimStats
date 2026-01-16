@@ -7,7 +7,9 @@
         xmlns:local="clr-namespace:SwimStats.App"
         xmlns:res="clr-namespace:SwimStats.App.Resources"
         mc:Ignorable="d"
-        Title="{res:Localize AppTitle}" Height="750" Width="1500"
+        Title="{res:Localize AppTitle}" 
+        Height="750" Width="1500"
+        MinHeight="500" MinWidth="800"
         Background="#FFF5F5F5">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
@@ -53,8 +55,8 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="2.5*"/>
-            <RowDefinition Height="1*"/>
+            <RowDefinition Height="2.5*" MinHeight="200"/>
+            <RowDefinition Height="1*" MinHeight="150"/>
         </Grid.RowDefinitions>
 
         <!-- Filter Controls Row -->
@@ -63,17 +65,17 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="160"/>
-                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="*" MinWidth="120" MaxWidth="180"/>
+                    <ColumnDefinition Width="Auto" MinWidth="15"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="120"/>
-                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="*" MinWidth="100" MaxWidth="140"/>
+                    <ColumnDefinition Width="Auto" MinWidth="15"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="280"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="2*" MinWidth="200"/>
+                    <ColumnDefinition Width="Auto" MinWidth="15"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="110"/>
-                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="*" MinWidth="90" MaxWidth="120"/>
+                    <ColumnDefinition Width="Auto" MinWidth="15"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 
@@ -116,12 +118,15 @@
                 </ComboBox>
                 
                 <!-- EZ-PC Logo -->
-                <Image Grid.Column="12" Source="/Assets/ezpc-logo.png" 
-                       Height="50" 
-                       HorizontalAlignment="Right" 
-                       VerticalAlignment="Center"
-                       Margin="10,0,0,0"
-                       ToolTip="EZ &amp; PC - Elster Zwem- &amp; Poloclub"/>
+                <Viewbox Grid.Column="12" 
+                         Height="50" 
+                         HorizontalAlignment="Right" 
+                         VerticalAlignment="Center"
+                         Margin="10,0,0,0"
+                         Stretch="Uniform">
+                    <Image Source="/Assets/ezpc-logo.png" 
+                           ToolTip="EZ &amp; PC - Elster Zwem- &amp; Poloclub"/>
+                </Viewbox>
             </Grid>
         </Border>
 
