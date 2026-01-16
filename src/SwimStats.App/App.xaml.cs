@@ -19,8 +19,35 @@ public partial class App : Application
 	{
 		base.OnStartup(e);
 
-		var logPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SwimStats", "startup.log");
-		void Log(string msg) => File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} - {msg}\n");
+		// Initialize application data directory
+		var appDataPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SwimStats");
+		try
+		{
+			if (!Directory.Exists(appDataPath))
+			{
+				Directory.CreateDirectory(appDataPath);
+			}
+		}
+		catch (Exception dirEx)
+		{
+			MessageBox.Show($"Failed to create application data directory at {appDataPath}:\n{dirEx.Message}", 
+				"Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
+			this.Shutdown(1);
+			return;
+		}
+
+		var logPath = System.IO.Path.Combine(appDataPath, "startup.log");
+		void Log(string msg)
+		{
+			try
+			{
+				File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} - {msg}\n");
+			}
+			catch
+			{
+				// Silently fail if logging is not possible, don't crash the app
+			}
+		}
 
 		try
 		{
@@ -28,9 +55,7 @@ public partial class App : Application
 
 			var services = new ServiceCollection();
 
-			var dbPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SwimStats", "swimstats.db");
-			var dbDir = System.IO.Path.GetDirectoryName(dbPath)!;
-			if (!Directory.Exists(dbDir)) Directory.CreateDirectory(dbDir);
+			var dbPath = System.IO.Path.Combine(appDataPath, "swimstats.db");
 			Log($"DB path: {dbPath}");
 
 			services.AddDbContext<SwimStatsDbContext>(opts => opts.UseSqlite($"Data Source={dbPath}"));
