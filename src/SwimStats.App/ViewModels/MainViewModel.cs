@@ -132,14 +132,22 @@ public partial class MainViewModel : ObservableObject
         {
             if (App.Services == null) return;
 
+            using var scope = App.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
+            
+            // Check if we already have data - skip auto-import if we do
+            var existingSwimmerCount = await db.Swimmers.CountAsync();
+            if (existingSwimmerCount > 0)
+            {
+                // Data already exists, skip auto-import
+                return;
+            }
+
             // No delay needed - start immediately in background
             IsImporting = true;
             ImportProgress = 0;
             var loc = LocalizationManager.Instance;
             ImportStatus = loc["StartingImport"];
-
-            using var scope = App.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
             
             // Create importer with progress callback
             var importer = new SwimTrackImporter(db, (current, total, status) =>
@@ -298,6 +306,21 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    private void ClearSwimmerSelections()
+    {
+        // Unselect all swimmers so user can quickly reset selections
+        foreach (var s in SelectableSwimmers)
+        {
+            s.IsSelected = false;
+        }
+
+        // Persist and refresh views
+        SaveSelections();
+        BuildChart();
+        LoadPersonalRecords();
+    }
+
     private async Task RefreshDataAsync()
     {
         if (App.Services == null) return;
@@ -404,6 +427,9 @@ public partial class MainViewModel : ObservableObject
             Padding = new OxyThickness(10)
         };
         
+        // Enable zoom and pan functionality
+        pm.IsLegendVisible = true;
+        
         // Add legend with modern styling
         var legend = new Legend
         {
@@ -421,7 +447,7 @@ public partial class MainViewModel : ObservableObject
         };
         pm.Legends.Add(legend);
         
-        // Modern date axis
+        // Modern date axis with zoom/pan enabled
         pm.Axes.Add(new DateTimeAxis 
         { 
             Position = AxisPosition.Bottom, 
@@ -433,7 +459,12 @@ public partial class MainViewModel : ObservableObject
             MinorGridlineStyle = LineStyle.Dot,
             MinorGridlineColor = OxyColor.FromRgb(245, 245, 245),
             TextColor = OxyColor.FromRgb(85, 85, 85),
-            FontSize = 11
+            FontSize = 11,
+            // Enable zooming and panning
+            IsPanEnabled = true,
+            IsZoomEnabled = true,
+            MinimumPadding = 0.05,
+            MaximumPadding = 0.05
         });
         
         // Custom axis formatter for swim times with modern styling
@@ -452,7 +483,12 @@ public partial class MainViewModel : ObservableObject
             TextColor = OxyColor.FromRgb(85, 85, 85),
             FontSize = 11,
             TitleFontSize = 12,
-            TitleFontWeight = 600
+            TitleFontWeight = 600,
+            // Enable zooming and panning
+            IsPanEnabled = true,
+            IsZoomEnabled = true,
+            MinimumPadding = 0.05,
+            MaximumPadding = 0.05
         };
         pm.Axes.Add(timeAxis);
 

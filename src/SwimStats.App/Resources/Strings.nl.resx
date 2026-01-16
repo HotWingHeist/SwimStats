@@ -181,4 +181,10 @@
   <data name="ClubSlowest" xml:space="preserve">
     <value>Club Langzaamste</value>
   </data>
+  <data name="ClearSelections" xml:space="preserve">
+    <value>Selecties Wissen</value>
+  </data>
+  <data name="ChartControls" xml:space="preserve">
+    <value>💡 Zweven voor details | Links-slepen om te zoomen | Rechts-klik om te resetten | Muiswiel om te zoomen</value>
+  </data>
 </root>

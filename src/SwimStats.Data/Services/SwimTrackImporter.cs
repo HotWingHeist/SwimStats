@@ -177,7 +177,8 @@ public class SwimTrackImporter : ISwimTrackImporter
         int count = 0;
 
         // Look for all links with href containing "slag=" (stroke) and title="Gezwommen op" (swum on)
-        var timeLinks = doc.DocumentNode.SelectNodes("//a[contains(@href, 'slag=') and contains(@title, 'Gezwommen op')]");
+        // Exclude links that contain "tuss" (tussentijden = intermediate times)
+        var timeLinks = doc.DocumentNode.SelectNodes("//a[contains(@href, 'slag=') and contains(@title, 'Gezwommen op') and not(contains(@href, 'tuss'))]");
 
         if (timeLinks != null)
         {

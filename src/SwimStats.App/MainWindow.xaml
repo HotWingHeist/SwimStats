@@ -108,6 +108,16 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+                <!-- Clear selections button -->
+                <Button Grid.Column="8" VerticalAlignment="Center" 
+                        Style="{StaticResource ModernButton}"
+                        Command="{Binding ClearSwimmerSelectionsCommand}"
+                        Margin="8,0,0,0" Background="#FFCCCCCC">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="↺" FontSize="14" Margin="0,0,6,0"/>
+                        <TextBlock Text="{res:Localize ClearSelections}" FontSize="13"/>
+                    </StackPanel>
+                </Button>
                 
                 <TextBlock Grid.Column="9" VerticalAlignment="Center" FontWeight="SemiBold" Text="{res:Localize Language}" Foreground="#FF333333"/>
                 <ComboBox Grid.Column="10" VerticalAlignment="Center" 
@@ -124,8 +134,7 @@
                          VerticalAlignment="Center"
                          Margin="10,0,0,0"
                          Stretch="Uniform">
-                    <Image Source="/Assets/ezpc-logo.png" 
-                           ToolTip="EZ &amp; PC - Elster Zwem- &amp; Poloclub"/>
+              <Image Source="/Assets/ezpc-logo.png" />
                 </Viewbox>
             </Grid>
         </Border>
@@ -139,27 +148,29 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             
-            <Button Grid.Column="0" 
+            <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button 
                     Style="{StaticResource ModernButton}"
                     Command="{Binding ImportDataCommand}" 
                     IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
                     Background="#FF0072B2">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="📥 " FontSize="16" Margin="0,0,6,0"/>
-                    <TextBlock Text="{res:Localize ImportButton}" Foreground="White" FontSize="13"/>
-                </StackPanel>
-            </Button>
-            
-            <Button Grid.Column="2"
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="📥 " FontSize="16" Margin="0,0,6,0"/>
+                        <TextBlock Text="{res:Localize ImportButton}" Foreground="White" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+                <Button 
                     Style="{StaticResource ModernButton}"
+                    Margin="8,0,0,0"
                     Command="{Binding ClearDataCommand}" 
                     IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
                     Background="#FFD55E00">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🗑️ " FontSize="16" Margin="0,0,6,0"/>
-                    <TextBlock Text="{res:Localize ClearDataButton}" Foreground="White" FontSize="13"/>
-                </StackPanel>
-            </Button>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🗑️ " FontSize="16" Margin="0,0,6,0"/>
+                        <TextBlock Text="{res:Localize ClearDataButton}" Foreground="White" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <!-- Progress bar for import -->
@@ -192,7 +203,25 @@
                 Margin="0,0,0,10"
                 BorderBrush="#FFE0E0E0" 
                 BorderThickness="1">
-            <oxy:PlotView Model="{Binding PlotModel}" />
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Chart -->
+                <oxy:PlotView Grid.Row="0" 
+                              x:Name="ChartPlotView"
+                              Model="{Binding PlotModel}" />
+                
+                <!-- Chart controls hint -->
+                <TextBlock Grid.Row="1" 
+                           Text="{res:Localize ChartControls}"
+                           FontSize="10" 
+                           Foreground="#FF888888" 
+                           Margin="5,3,5,3"
+                           HorizontalAlignment="Center"/>
+            </Grid>
         </Border>
         
         <!-- Personal Records Table -->
@@ -255,7 +284,7 @@
                         <DataGridTextColumn Header="{res:Localize Swimmer}" Binding="{Binding SwimmerName}" Width="2*"/>
                         <DataGridTextColumn Header="{res:Localize Stroke}" Binding="{Binding StrokeName}" Width="1.2*"/>
                         <DataGridTextColumn Header="{res:Localize Distance}" Binding="{Binding Distance}" Width="0.8*"/>
-                        <DataGridTextColumn Header="{res:Localize BestTime}" Binding="{Binding BestTimeFormatted}" Width="1*">
+                        <DataGridTextColumn Header="{res:Localize BestTime}" Binding="{Binding BestTimeFormatted}" Width="1*" SortMemberPath="BestTime">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="FontWeight" Value="Bold"/>
@@ -264,9 +293,9 @@
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
                         <DataGridTextColumn Header="{res:Localize Date}" Binding="{Binding Date, StringFormat='{}{0:dd-MM-yyyy}'}" Width="1.2*"/>
-                        <DataGridTextColumn Header="{res:Localize SeasonalBest}" Binding="{Binding SeasonalBestFormatted}" Width="1*"/>
+                        <DataGridTextColumn Header="{res:Localize SeasonalBest}" Binding="{Binding SeasonalBestFormatted}" Width="1*" SortMemberPath="SeasonalBest"/>
                         <DataGridTextColumn Header="{res:Localize Date}" Binding="{Binding SeasonalBestDate, StringFormat='{}{0:dd-MM-yyyy}'}" Width="1.2*"/>
-                        <DataGridTextColumn Header="{res:Localize PreviousSeasonalBest}" Binding="{Binding PreviousSeasonalBestFormatted}" Width="1.2*"/>
+                        <DataGridTextColumn Header="{res:Localize PreviousSeasonalBest}" Binding="{Binding PreviousSeasonalBestFormatted}" Width="1.2*" SortMemberPath="PreviousSeasonalBest"/>
                         <DataGridTextColumn Header="{res:Localize Date}" Binding="{Binding PreviousSeasonalBestDate, StringFormat='{}{0:dd-MM-yyyy}'}" Width="1.2*"/>
                     </DataGrid.Columns>
                 </DataGrid>

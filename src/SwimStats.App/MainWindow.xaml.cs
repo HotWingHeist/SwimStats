@@ -11,6 +11,8 @@ using System.Windows.Shapes;
 using SwimStats.Core.Models;
 using SwimStats.App.Resources;
 using SwimStats.App.Services;
+using OxyPlot;
+using OxyPlot.Wpf;
 
 namespace SwimStats.App;
 
@@ -30,6 +32,38 @@ public partial class MainWindow : Window
         this.DataContext = new ViewModels.MainViewModel();
         // Set DataContext to the viewmodel (uses default ctor)
         this.Loaded += MainWindow_Loaded;
+        
+        // Configure PlotView for zoom and pan
+        ConfigurePlotView();
+    }
+    
+    private void ConfigurePlotView()
+    {
+        // Configure the chart to enable zoom and pan with proper mouse bindings
+        var controller = new PlotController();
+        
+        // Add default bindings for zoom and pan
+        controller.UnbindAll();
+        
+        // Left mouse button: zoom by rectangle
+        controller.BindMouseDown(OxyMouseButton.Left, OxyPlot.PlotCommands.ZoomRectangle);
+        
+        // Right mouse button: pan
+        controller.BindMouseDown(OxyMouseButton.Right, OxyPlot.PlotCommands.PanAt);
+        
+        // Mouse wheel: zoom in/out
+        controller.BindMouseWheel(OxyPlot.PlotCommands.ZoomWheel);
+        
+        // Hover for tracker (tooltip)
+        controller.BindMouseEnter(OxyPlot.PlotCommands.HoverPointsOnlyTrack);
+        
+        // Double click: reset
+        controller.Bind(new OxyMouseDownGesture(OxyMouseButton.Left, clickCount: 2), OxyPlot.PlotCommands.ResetAt);
+        
+        // Right click: reset  
+        controller.Bind(new OxyMouseDownGesture(OxyMouseButton.Right, clickCount: 1), OxyPlot.PlotCommands.ResetAt);
+        
+        ChartPlotView.Controller = controller;
     }
     
     private async void MainWindow_Loaded(object? sender, RoutedEventArgs e)

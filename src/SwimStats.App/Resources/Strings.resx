@@ -181,4 +181,10 @@
   <data name="ClubSlowest" xml:space="preserve">
     <value>Club Slowest</value>
   </data>
+  <data name="ClearSelections" xml:space="preserve">
+    <value>Clear Selections</value>
+  </data>
+  <data name="ChartControls" xml:space="preserve">
+    <value>💡 Hover for details | Left-click drag to zoom | Right-click to reset | Mouse wheel to zoom</value>
+  </data>
 </root>
