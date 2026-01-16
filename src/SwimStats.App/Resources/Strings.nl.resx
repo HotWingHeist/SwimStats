@@ -65,7 +65,7 @@
     <value>Slag</value>
   </data>
   <data name="Distance" xml:space="preserve">
-    <value>Afstand</value>
+    <value>Afstand (m)</value>
   </data>
   <data name="Swimmers" xml:space="preserve">
     <value>Zwemmers</value>
@@ -161,13 +161,13 @@
     <value>Zwemmer</value>
   </data>
   <data name="BestTime" xml:space="preserve">
-    <value>Beste Tijd</value>
+    <value>Beste Tijd (mm:ss.cs)</value>
   </data>
   <data name="SeasonalBest" xml:space="preserve">
-    <value>Seizoen Beste</value>
+    <value>Seizoen Beste (mm:ss.cs)</value>
   </data>
   <data name="PreviousSeasonalBest" xml:space="preserve">
-    <value>Vorig Seizoen</value>
+    <value>Vorig Seizoen (mm:ss.cs)</value>
   </data>
   <data name="Rating" xml:space="preserve">
     <value>Punten</value>

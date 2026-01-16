@@ -65,7 +65,7 @@
     <value>Stroke</value>
   </data>
   <data name="Distance" xml:space="preserve">
-    <value>Distance</value>
+    <value>Distance (m)</value>
   </data>
   <data name="Swimmers" xml:space="preserve">
     <value>Swimmers</value>
@@ -161,13 +161,13 @@
     <value>Swimmer</value>
   </data>
   <data name="BestTime" xml:space="preserve">
-    <value>Best Time</value>
+    <value>Best Time (mm:ss.cs)</value>
   </data>
   <data name="SeasonalBest" xml:space="preserve">
-    <value>Season Best</value>
+    <value>Season Best (mm:ss.cs)</value>
   </data>
   <data name="PreviousSeasonalBest" xml:space="preserve">
-    <value>Previous Season</value>
+    <value>Previous Season (mm:ss.cs)</value>
   </data>
   <data name="Rating" xml:space="preserve">
     <value>Rating</value>
