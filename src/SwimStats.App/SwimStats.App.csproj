@@ -13,6 +13,10 @@
     <Product>SwimStats</Product>
     <Description>Swimming performance tracking and analysis application</Description>
     <Copyright>Copyright © 2026 EZPC Swimming Club</Copyright>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
