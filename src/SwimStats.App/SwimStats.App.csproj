@@ -7,6 +7,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <Authors>EZPC Swimming Club</Authors>
+    <Company>EZPC</Company>
+    <Product>SwimStats</Product>
+    <Description>Swimming performance tracking and analysis application</Description>
+    <Copyright>Copyright © 2026 EZPC Swimming Club</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

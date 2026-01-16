@@ -187,4 +187,43 @@
   <data name="ChartControls" xml:space="preserve">
     <value>💡 Hover for details | Left-click drag to zoom | Right-click to reset | Mouse wheel to zoom</value>
   </data>
+  <data name="Help" xml:space="preserve">
+    <value>Help</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>About SwimStats</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="Author" xml:space="preserve">
+    <value>Author</value>
+  </data>
+  <data name="AuthorName" xml:space="preserve">
+    <value>EZPC Swimming Club</value>
+  </data>
+  <data name="Description" xml:space="preserve">
+    <value>Swimming performance tracking and analysis application</value>
+  </data>
+  <data name="GitHub" xml:space="preserve">
+    <value>GitHub</value>
+  </data>
+  <data name="GitHubUrl" xml:space="preserve">
+    <value>https://github.com/HotWingHeist/SwimStats</value>
+  </data>
+  <data name="SelectAll" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="SelectNone" xml:space="preserve">
+    <value>Select None</value>
+  </data>
+  <data name="NoSwimmersSelected" xml:space="preserve">
+    <value>No swimmers selected. Please select swimmers from the dropdown above to view their performance.</value>
+  </data>
+  <data name="NoDataAvailable" xml:space="preserve">
+    <value>No data available. Click "Import from SwimTrack" to load swimmer data.</value>
+  </data>
 </root>

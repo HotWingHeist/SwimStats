@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:oxy="http://oxyplot.org/wpf"
         xmlns:local="clr-namespace:SwimStats.App"
+        xmlns:converters="clr-namespace:SwimStats.App.Converters"
         xmlns:res="clr-namespace:SwimStats.App.Resources"
         mc:Ignorable="d"
         Title="{res:Localize AppTitle}" 
@@ -14,6 +15,7 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <local:InverseBooleanConverter x:Key="InverseBoolConverter"/>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
         
         <!-- Modern Button Style -->
         <Style x:Key="ModernButton" TargetType="Button">
@@ -50,17 +52,25 @@
             <Setter Property="Background" Value="White"/>
         </Style>
     </Window.Resources>
-    <Grid Margin="15">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="2.5*" MinHeight="200"/>
-            <RowDefinition Height="1*" MinHeight="150"/>
-        </Grid.RowDefinitions>
+    <DockPanel>
+        <!-- Menu Bar -->
+        <Menu DockPanel.Dock="Top" Background="White" BorderBrush="#FFE0E0E0" BorderThickness="0,0,0,1">
+            <MenuItem Header="{res:Localize Help}">
+                <MenuItem Header="{res:Localize About}" Click="About_Click"/>
+            </MenuItem>
+        </Menu>
+        
+        <Grid Margin="15">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="2.5*" MinHeight="200"/>
+                <RowDefinition Height="1*" MinHeight="150"/>
+            </Grid.RowDefinitions>
 
-        <!-- Filter Controls Row -->
-        <Border Grid.Row="0" Background="White" CornerRadius="6" Padding="12" Margin="0,0,0,10" 
+            <!-- Filter Controls Row -->
+            <Border Grid.Row="0" Background="White" CornerRadius="6" Padding="12" Margin="0,0,0,10" 
                 BorderBrush="#FFE0E0E0" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -108,16 +118,26 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <!-- Clear selections button -->
-                <Button Grid.Column="8" VerticalAlignment="Center" 
-                        Style="{StaticResource ModernButton}"
-                        Command="{Binding ClearSwimmerSelectionsCommand}"
-                        Margin="8,0,0,0" Background="#FFCCCCCC">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="↺" FontSize="14" Margin="0,0,6,0"/>
-                        <TextBlock Text="{res:Localize ClearSelections}" FontSize="13"/>
-                    </StackPanel>
-                </Button>
+                <!-- Select All/None buttons -->
+                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Style="{StaticResource ModernButton}"
+                            Command="{Binding SelectAllSwimmersCommand}"
+                            Background="#FF009E73"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✓" FontSize="14" Margin="0,0,6,0"/>
+                            <TextBlock Text="{res:Localize SelectAll}" FontSize="13" Foreground="White"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ModernButton}"
+                            Command="{Binding SelectNoneSwimmersCommand}"
+                            Background="#FFCCCCCC">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✗" FontSize="14" Margin="0,0,6,0"/>
+                            <TextBlock Text="{res:Localize SelectNone}" FontSize="13"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
                 
                 <TextBlock Grid.Column="9" VerticalAlignment="Center" FontWeight="SemiBold" Text="{res:Localize Language}" Foreground="#FF333333"/>
                 <ComboBox Grid.Column="10" VerticalAlignment="Center" 
@@ -212,7 +232,36 @@
                 <!-- Chart -->
                 <oxy:PlotView Grid.Row="0" 
                               x:Name="ChartPlotView"
-                              Model="{Binding PlotModel}" />
+                              Model="{Binding PlotModel}"
+                              Visibility="{Binding HasSwimmersSelected, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                
+                <!-- Empty state message - No swimmers selected -->
+                <StackPanel Grid.Row="0" 
+                            VerticalAlignment="Center" 
+                            HorizontalAlignment="Center"
+                            Visibility="{Binding HasSwimmersSelected, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="📊" FontSize="48" HorizontalAlignment="Center" Opacity="0.3" Margin="0,0,0,10"/>
+                    <TextBlock Text="{res:Localize NoSwimmersSelected}" 
+                               FontSize="14" 
+                               Foreground="#FF888888"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               MaxWidth="400"/>
+                </StackPanel>
+                
+                <!-- Empty state message - No data available -->
+                <StackPanel Grid.Row="0" 
+                            VerticalAlignment="Center" 
+                            HorizontalAlignment="Center"
+                            Visibility="{Binding HasNoData, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="📂" FontSize="48" HorizontalAlignment="Center" Opacity="0.3" Margin="0,0,0,10"/>
+                    <TextBlock Text="{res:Localize NoDataAvailable}" 
+                               FontSize="14" 
+                               Foreground="#FF888888"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               MaxWidth="400"/>
+                </StackPanel>
                 
                 <!-- Chart controls hint -->
                 <TextBlock Grid.Row="1" 
@@ -257,7 +306,8 @@
                           CanUserResizeColumns="True"
                           CanUserSortColumns="True"
                           FontSize="12"
-                          SelectionMode="Single">
+                          SelectionMode="Single"
+                          MouseDoubleClick="DataGrid_MouseDoubleClick">
                     <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="DataGridColumnHeader">
                             <Setter Property="Background" Value="#FF0072B2"/>
@@ -266,6 +316,41 @@
                             <Setter Property="Padding" Value="8,6"/>
                             <Setter Property="BorderThickness" Value="0,0,1,0"/>
                             <Setter Property="BorderBrush" Value="#FF005A8E"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="DataGridColumnHeader">
+                                        <Border Background="{TemplateBinding Background}" 
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0" VerticalAlignment="Center"/>
+                                                <!-- Sort indicator -->
+                                                <TextBlock Grid.Column="1" 
+                                                           x:Name="SortIndicator"
+                                                           Margin="4,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Visibility="Collapsed"
+                                                           FontFamily="Segoe UI Symbol"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="SortDirection" Value="Ascending">
+                                                <Setter TargetName="SortIndicator" Property="Text" Value="▲"/>
+                                                <Setter TargetName="SortIndicator" Property="Visibility" Value="Visible"/>
+                                            </Trigger>
+                                            <Trigger Property="SortDirection" Value="Descending">
+                                                <Setter TargetName="SortIndicator" Property="Text" Value="▼"/>
+                                                <Setter TargetName="SortIndicator" Property="Visibility" Value="Visible"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
                     </DataGrid.ColumnHeaderStyle>
                     <DataGrid.CellStyle>
@@ -302,4 +387,5 @@
             </Grid>
         </Border>
     </Grid>
+    </DockPanel>
 </Window>

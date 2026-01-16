@@ -187,4 +187,43 @@
   <data name="ChartControls" xml:space="preserve">
     <value>💡 Zweven voor details | Links-slepen om te zoomen | Rechts-klik om te resetten | Muiswiel om te zoomen</value>
   </data>
+  <data name="Help" xml:space="preserve">
+    <value>Help</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>Over</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>Over SwimStats</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+    <value>Versie</value>
+  </data>
+  <data name="Author" xml:space="preserve">
+    <value>Auteur</value>
+  </data>
+  <data name="AuthorName" xml:space="preserve">
+    <value>EZPC Zwemvereniging</value>
+  </data>
+  <data name="Description" xml:space="preserve">
+    <value>Applicatie voor zwemprestatie tracking en analyse</value>
+  </data>
+  <data name="GitHub" xml:space="preserve">
+    <value>GitHub</value>
+  </data>
+  <data name="GitHubUrl" xml:space="preserve">
+    <value>https://github.com/HotWingHeist/SwimStats</value>
+  </data>
+  <data name="SelectAll" xml:space="preserve">
+    <value>Selecteer Alles</value>
+  </data>
+  <data name="SelectNone" xml:space="preserve">
+    <value>Selecteer Geen</value>
+  </data>
+  <data name="NoSwimmersSelected" xml:space="preserve">
+    <value>Geen zwemmers geselecteerd. Selecteer zwemmers in het dropdown menu hierboven om hun prestaties te bekijken.</value>
+  </data>
+  <data name="NoDataAvailable" xml:space="preserve">
+    <value>Geen gegevens beschikbaar. Klik op "Importeren van SwimTrack" om zwemgegevens te laden.</value>
+  </data>
 </root>

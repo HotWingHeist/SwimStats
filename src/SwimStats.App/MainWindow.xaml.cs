@@ -168,4 +168,28 @@ public partial class MainWindow : Window
         if (parentObject is T parent) return parent;
         return FindParent<T>(parentObject);
     }
+
+    private void About_Click(object sender, RoutedEventArgs e)
+    {
+        var loc = LocalizationManager.Instance;
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.1.0";
+        var aboutMessage = $"{loc["Description"]}\n\n" +
+                          $"{loc["Version"]}: {version}\n" +
+                          $"{loc["Author"]}: {loc["AuthorName"]}\n\n" +
+                          $"{loc["GitHub"]}:\n{loc["GitHubUrl"]}";
+        
+        MessageBox.Show(aboutMessage, loc["AboutTitle"], MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void DataGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not DataGrid dataGrid) return;
+        if (dataGrid.SelectedItem is not Models.PersonalRecordViewModel selectedRecord) return;
+        
+        // Get the view model and refresh chart to highlight the selected swimmer
+        if (DataContext is ViewModels.MainViewModel viewModel)
+        {
+            viewModel.RefreshChart();
+        }
+    }
 }

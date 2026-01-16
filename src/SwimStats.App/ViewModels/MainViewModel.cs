@@ -50,6 +50,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private PersonalRecordViewModel? selectedPersonalRecord;
     
+    [ObservableProperty]
+    private bool hasSwimmersSelected;
+    
+    [ObservableProperty]
+    private bool hasNoData;
+    
     private bool _isInitializing = true;
 
     public MainViewModel()
@@ -321,6 +327,32 @@ public partial class MainViewModel : ObservableObject
         LoadPersonalRecords();
     }
 
+    [RelayCommand]
+    private void SelectAllSwimmers()
+    {
+        foreach (var s in SelectableSwimmers)
+        {
+            s.IsSelected = true;
+        }
+
+        SaveSelections();
+        BuildChart();
+        LoadPersonalRecords();
+    }
+
+    [RelayCommand]
+    private void SelectNoneSwimmers()
+    {
+        foreach (var s in SelectableSwimmers)
+        {
+            s.IsSelected = false;
+        }
+
+        SaveSelections();
+        BuildChart();
+        LoadPersonalRecords();
+    }
+
     private async Task RefreshDataAsync()
     {
         if (App.Services == null) return;
@@ -552,7 +584,7 @@ public partial class MainViewModel : ObservableObject
                             .ToList();
 
                         // Create cumulative best (rolling minimum) - using color-blind friendly colors
-                        var cumulativeMin = new LineSeries
+                        var cumulativeMin = new SwimTimeSeries
                         {
                             Title = loc["ClubBest"],
                             Color = OxyColor.FromRgb(0, 158, 115),  // Bluish Green (color-blind safe)
@@ -561,7 +593,7 @@ public partial class MainViewModel : ObservableObject
                             MarkerType = MarkerType.None
                         };
 
-                        var cumulativeMedian = new LineSeries
+                        var cumulativeMedian = new SwimTimeSeries
                         {
                             Title = loc["ClubMedian"],
                             Color = OxyColor.FromRgb(230, 159, 0),  // Orange (color-blind safe)
@@ -570,7 +602,7 @@ public partial class MainViewModel : ObservableObject
                             MarkerType = MarkerType.None
                         };
 
-                        var cumulativeMax = new LineSeries
+                        var cumulativeMax = new SwimTimeSeries
                         {
                             Title = loc["ClubSlowest"],
                             Color = OxyColor.FromRgb(213, 94, 0),   // Vermillion (color-blind safe)
@@ -682,6 +714,10 @@ public partial class MainViewModel : ObservableObject
         }
 
         PlotModel = pm;
+        
+        // Update empty state flags
+        HasNoData = !SelectableSwimmers.Any();
+        HasSwimmersSelected = !selectedSwimmers.Any() && SelectableSwimmers.Any();
     }
 
     private void LoadPersonalRecords()
@@ -777,15 +813,16 @@ public partial class MainViewModel : ObservableObject
     private static string FormatSwimTime(double totalSeconds)
     {
         var minutes = (int)(totalSeconds / 60);
-        var seconds = totalSeconds % 60;
+        var remainingSeconds = (int)(totalSeconds % 60);
+        var centiseconds = (int)((totalSeconds % 1) * 100);
         
         if (minutes > 0)
         {
-            return $"{minutes}:{seconds:00.00}";
+            return $"{minutes:00}:{remainingSeconds:00}.{centiseconds:00}";
         }
         else
         {
-            return $"{seconds:0.00}";
+            return $"{remainingSeconds:00}.{centiseconds:00}";
         }
     }
 

@@ -28,15 +28,16 @@ public class SwimTimeSeries : LineSeries
     private static string FormatSwimTime(double totalSeconds)
     {
         var minutes = (int)(totalSeconds / 60);
-        var seconds = totalSeconds % 60;
+        var remainingSeconds = (int)(totalSeconds % 60);
+        var centiseconds = (int)((totalSeconds % 1) * 100);
         
         if (minutes > 0)
         {
-            return $"{minutes}:{seconds:00.00}";
+            return $"{minutes:00}:{remainingSeconds:00}.{centiseconds:00}";
         }
         else
         {
-            return $"{seconds:0.00}";
+            return $"{remainingSeconds:00}.{centiseconds:00}";
         }
     }
 }
