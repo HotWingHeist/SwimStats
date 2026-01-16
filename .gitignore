@@ -32,6 +32,11 @@ packages/
 [Ll]og/
 [Ll]ogs/
 publish/
+artifacts/
+
+# Code signing certificates (security)
+*.pfx
+*.p12
 
 # Windows
 Thumbs.db
