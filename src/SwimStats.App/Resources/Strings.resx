@@ -164,10 +164,10 @@
     <value>Best Time (mm:ss.cs)</value>
   </data>
   <data name="SeasonalBest" xml:space="preserve">
-    <value>Season Best (mm:ss.cs)</value>
+    <value>Best This Year (mm:ss.cs)</value>
   </data>
   <data name="PreviousSeasonalBest" xml:space="preserve">
-    <value>Previous Season (mm:ss.cs)</value>
+    <value>Best Last Year (mm:ss.cs)</value>
   </data>
   <data name="Rating" xml:space="preserve">
     <value>Rating</value>
@@ -225,5 +225,20 @@
   </data>
   <data name="NoDataAvailable" xml:space="preserve">
     <value>No data available. Click "Import from SwimTrack" to load swimmer data.</value>
+  </data>
+  <data name="CheckingConnection" xml:space="preserve">
+    <value>Checking connection...</value>
+  </data>
+  <data name="WebsiteUnavailableTitle" xml:space="preserve">
+    <value>Website Unavailable</value>
+  </data>
+  <data name="WebsiteUnavailableMessage" xml:space="preserve">
+    <value>The SwimRankings website is currently unavailable or not reachable. Please check your internet connection and try again later.</value>
+  </data>
+  <data name="ImportFailedTitle" xml:space="preserve">
+    <value>Import Failed</value>
+  </data>
+  <data name="ImportFailedMessage" xml:space="preserve">
+    <value>Failed to import data from SwimRankings:</value>
   </data>
 </root>

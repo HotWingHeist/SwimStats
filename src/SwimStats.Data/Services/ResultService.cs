@@ -13,13 +13,15 @@ public class ResultService : IResultService
         _db = db;
     }
 
-    public async Task<IEnumerable<Result>> GetResultsAsync(int swimmerId, Stroke? stroke = null, int? distance = null)
+    public async Task<IEnumerable<Result>> GetResultsAsync(int swimmerId, Stroke? stroke = null, int? distance = null, Course? course = null)
     {
         var q = _db.Results.Include(r => r.Event).Where(r => r.SwimmerId == swimmerId).AsQueryable();
         if (stroke != null)
             q = q.Where(r => r.Event!.Stroke == stroke);
         if (distance != null)
             q = q.Where(r => r.Event!.DistanceMeters == distance);
+        if (course != null)
+            q = q.Where(r => r.Course == course);
         return await q.OrderBy(r => r.Date).ToListAsync();
     }
 

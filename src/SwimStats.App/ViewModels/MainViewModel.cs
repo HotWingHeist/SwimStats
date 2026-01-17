@@ -11,7 +11,10 @@ using SwimStats.Core.Models;
 using SwimStats.Data;
 using SwimStats.Data.Services;
 using System.Collections.ObjectModel;
+using System.Net.Http;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using SwimStats.App.Models;
 using SwimStats.App.Controls;
 using SwimStats.App.Resources;
@@ -24,6 +27,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<SelectableSwimmer> SelectableSwimmers { get; } = new();
     public ObservableCollection<LocalizedStroke> Strokes { get; } = new();
     public ObservableCollection<int> Distances { get; } = new();
+    public ObservableCollection<SelectableCourse> SelectableCourses { get; } = new();
     public ObservableCollection<PersonalRecordViewModel> PersonalRecords { get; } = new();
 
     [ObservableProperty]
@@ -60,27 +64,51 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        // Load swimmers from database on startup
-        LoadInitialDataAsync();
-
+        // Add stroke options
         Strokes.Add(new LocalizedStroke(Stroke.Freestyle));
         Strokes.Add(new LocalizedStroke(Stroke.Breaststroke));
         Strokes.Add(new LocalizedStroke(Stroke.Backstroke));
         Strokes.Add(new LocalizedStroke(Stroke.Butterfly));
         Strokes.Add(new LocalizedStroke(Stroke.IM));
 
-        // Add all common swimming distances
-        Distances.Add(50);
-        Distances.Add(100);
-        Distances.Add(200);
-        Distances.Add(400);
-        Distances.Add(800);
-        Distances.Add(1500);
+        // Add course options - both selected by default
+        var longCourse = new SelectableCourse(Course.LongCourse, "50m pool") { IsSelected = true };
+        var shortCourse = new SelectableCourse(Course.ShortCourse, "25m pool") { IsSelected = true };
+        
+        // Hook into course selection changes
+        longCourse.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(SelectableCourse.IsSelected))
+            {
+                if (!_isInitializing)
+                {
+                    SaveSelections();
+                    BuildChart();
+                    LoadPersonalRecords();
+                }
+            }
+        };
+        
+        shortCourse.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(SelectableCourse.IsSelected))
+            {
+                if (!_isInitializing)
+                {
+                    SaveSelections();
+                    BuildChart();
+                    LoadPersonalRecords();
+                }
+            }
+        };
+        
+        SelectableCourses.Add(longCourse);
+        SelectableCourses.Add(shortCourse);
 
         // Load saved settings
         var settings = AppSettings.Instance;
         
-        // Restore selected stroke
+        // Set selected stroke (will be available immediately)
         if (settings.SelectedStroke != null && Enum.TryParse<Stroke>(settings.SelectedStroke, out var savedStroke))
         {
             SelectedStroke = Strokes.FirstOrDefault(s => s.Stroke == savedStroke) ?? Strokes.FirstOrDefault();
@@ -89,47 +117,79 @@ public partial class MainViewModel : ObservableObject
         {
             SelectedStroke = Strokes.FirstOrDefault();
         }
-        
-        // Restore selected distance
-        SelectedDistance = settings.SelectedDistance ?? Distances.FirstOrDefault();
-        
-        // Start background import on startup
-        _ = Task.Run(async () => await AutoImportDataAsync());
+
+        // Load swimmers and distances from database on startup
+        InitializeAllDataSync();
     }
 
-    private async void LoadInitialDataAsync()
+    private void InitializeAllDataSync()
     {
-        if (App.Services == null) return;
-
-        using var scope = App.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
-        
-        var swimmers = await db.Swimmers.ToListAsync();
-        var settings = AppSettings.Instance;
-        
-        foreach (var s in swimmers)
+        try
         {
-            var selectableSwimmer = new SelectableSwimmer(s);
+            if (App.Services == null) return;
+
+            using var scope = App.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
             
-            // Restore selection from settings
-            selectableSwimmer.IsSelected = settings.SelectedSwimmerIds.Contains(s.Id);
+            // Load distances from database
+            var uniqueDistances = db.Events
+                .Select(e => e.DistanceMeters)
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
             
-            selectableSwimmer.PropertyChanged += (sender, e) =>
+            Distances.Clear();
+            foreach (var distance in uniqueDistances)
             {
-                if (e.PropertyName == nameof(SelectableSwimmer.IsSelected))
+                Distances.Add(distance);
+            }
+            
+            // If no distances found, add defaults
+            if (Distances.Count == 0)
+            {
+                Distances.Add(50);
+                Distances.Add(100);
+                Distances.Add(200);
+                Distances.Add(400);
+                Distances.Add(800);
+                Distances.Add(1500);
+            }
+
+            // Set selected distance
+            var settings = AppSettings.Instance;
+            SelectedDistance = settings.SelectedDistance ?? Distances.FirstOrDefault();
+
+            // Load swimmers from database
+            var swimmers = db.Swimmers.ToList();
+            foreach (var s in swimmers)
+            {
+                var selectableSwimmer = new SelectableSwimmer(s);
+                
+                // Auto-select all swimmers on first run
+                selectableSwimmer.IsSelected = settings.SelectedSwimmerIds.Contains(s.Id) || settings.SelectedSwimmerIds.Count == 0;
+                
+                selectableSwimmer.PropertyChanged += (sender, e) =>
                 {
-                    SaveSelections();
-                    BuildChart();
-                    LoadPersonalRecords();
-                }
-            };
-            SelectableSwimmers.Add(selectableSwimmer);
+                    if (e.PropertyName == nameof(SelectableSwimmer.IsSelected))
+                    {
+                        SaveSelections();
+                        BuildChart();
+                        LoadPersonalRecords();
+                    }
+                };
+                SelectableSwimmers.Add(selectableSwimmer);
+            }
+            
+            // All data is loaded, now build UI
+            _isInitializing = false;
+            BuildChart();
+            LoadPersonalRecords();
         }
-        
-        // Data is loaded, now build chart and load records
-        _isInitializing = false;
-        BuildChart();
-        LoadPersonalRecords();
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InitializeAllDataSync] Error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[InitializeAllDataSync] StackTrace: {ex.StackTrace}");
+        }
     }
 
     private async Task AutoImportDataAsync()
@@ -156,7 +216,7 @@ public partial class MainViewModel : ObservableObject
             ImportStatus = loc["StartingImport"];
             
             // Create importer with progress callback
-            var importer = new SwimTrackImporter(db, (current, total, status) =>
+            var importer = new SwimRankingsImporter(db, (current, total, status) =>
             {
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -165,8 +225,28 @@ public partial class MainViewModel : ObservableObject
                 });
             });
 
-            // Use the specific page with swimmer personal times
-            var url = "https://www.swimtrack.nl/ez-pc/perstijden.php";
+            // Check if website is reachable before attempting import
+            ImportStatus = loc["CheckingConnection"];
+            if (!await importer.IsWebsiteReachableAsync())
+            {
+                // Website is down
+                IsImporting = false;
+                ImportProgress = 0;
+                ImportStatus = "";
+                
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show(
+                        loc["WebsiteUnavailableMessage"],
+                        loc["WebsiteUnavailableTitle"],
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                });
+                return;
+            }
+
+            // Use SwimRankings athlete search page
+            var url = "https://www.swimrankings.net/index.php?page=athleteSelect&nationId=0&selectPage=SEARCH";
 
             ImportStatus = loc["ImportingSwimmers"];
             var swimmerCount = await importer.ImportSwimmersAsync(url);
@@ -184,14 +264,21 @@ public partial class MainViewModel : ObservableObject
                 await RefreshDataAsync();
             });
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail for background import
+            // Show error message for import failures
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
+                var loc = LocalizationManager.Instance;
                 IsImporting = false;
                 ImportProgress = 0;
                 ImportStatus = "";
+                
+                MessageBox.Show(
+                    $"{loc["ImportFailedMessage"]}\n\n{ex.Message}",
+                    loc["ImportFailedTitle"],
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             });
         }
     }
@@ -236,7 +323,40 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task ImportData()
+    private async Task ImportFromSwimRankings()
+    {
+        if (App.Services == null) return;
+        
+        using var scope = App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
+        
+        await ImportDataAsync(new SwimRankingsImporter(db, GetProgressCallback()), "SwimRankings");
+    }
+
+    [RelayCommand]
+    private async Task ImportFromSwimTrack()
+    {
+        if (App.Services == null) return;
+        
+        using var scope = App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
+        
+        await ImportDataAsync(new SwimTrackImporter(db, GetProgressCallback()), "SwimTrack");
+    }
+
+    private Action<int, int, string> GetProgressCallback()
+    {
+        return (current, total, status) =>
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                ImportProgress = total > 0 ? (int)((double)current / total * 100) : 0;
+                ImportStatus = status;
+            });
+        };
+    }
+
+    private async Task ImportDataAsync(ISwimTrackImporter importer, string sourceLabel)
     {
         try
         {
@@ -248,17 +368,6 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            var result = MessageBox.Show(
-                loc["ImportConfirmMessage"],
-                loc["ImportConfirmTitle"],
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
             IsImporting = true;
             ImportProgress = 0;
             ImportStatus = loc["StartingImport"];
@@ -266,31 +375,112 @@ public partial class MainViewModel : ObservableObject
             using var scope = App.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
             
-            // Create importer with progress callback
-            var importer = new SwimTrackImporter(db, (current, total, status) =>
+            // Check if website is reachable before attempting import
+            ImportStatus = $"Checking {sourceLabel} connection...";
+            if (!await importer.IsWebsiteReachableAsync())
             {
+                // Website is down
+                IsImporting = false;
+                ImportProgress = 0;
+                ImportStatus = "";
+                
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
-                    ImportProgress = total > 0 ? (int)((double)current / total * 100) : 0;
-                    ImportStatus = status;
+                    MessageBox.Show(
+                        $"The {sourceLabel} website is currently unavailable or not reachable. Please check your internet connection and try again later.",
+                        loc["WebsiteUnavailableTitle"],
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                 });
-            });
+                return;
+            }
 
-            // Use the specific page with swimmer personal times
-            var url = "https://www.swimtrack.nl/ez-pc/perstijden.php";
-
-            ImportStatus = loc["ImportingSwimmers"];
-            var swimmerCount = await importer.ImportSwimmersAsync(url);
+            // Get all swimmers from the database
+            var allSwimmers = await db.Swimmers.ToListAsync();
             
-            ImportStatus = loc["ImportingResults"];
-            var resultCount = await importer.ImportResultsAsync(url);
+            if (!allSwimmers.Any())
+            {
+                MessageBox.Show("No swimmers found in the database.", loc["ImportErrorTitle"], MessageBoxButton.OK, MessageBoxImage.Warning);
+                IsImporting = false;
+                ImportProgress = 0;
+                ImportStatus = "";
+                return;
+            }
+
+            int totalResultsImported = 0;
+            int successCount = 0;
+            int failureCount = 0;
+            
+            // Import data for each swimmer
+            for (int i = 0; i < allSwimmers.Count; i++)
+            {
+                var swimmer = allSwimmers[i];
+                ImportStatus = $"Importing from {sourceLabel} for {swimmer.DisplayName} ({i + 1}/{allSwimmers.Count})...";
+                ImportProgress = (int)((i / (double)allSwimmers.Count) * 100);
+                
+                try
+                {
+                    var resultCount = await importer.ImportSwimmerByNameAsync(swimmer.FirstName, swimmer.LastName);
+                    totalResultsImported += resultCount;
+                    successCount++;
+                }
+                catch (HttpRequestException hre)
+                {
+                    // Network error - likely website is unreachable
+                    failureCount++;
+                    System.Diagnostics.Debug.WriteLine($"Network error importing {swimmer.DisplayName}: {hre.Message}");
+                    
+                    // If we're getting network errors for multiple swimmers, ask user to retry
+                    if (failureCount >= 3)
+                    {
+                        IsImporting = false;
+                        ImportProgress = 0;
+                        ImportStatus = "";
+                        
+                        var result = MessageBox.Show(
+                            $"{sourceLabel} website appears to be unreachable. This might be a temporary issue.\n\nWould you like to:\n- Retry: Try again\n- Cancel: Stop import",
+                            "Network Error",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning);
+                        
+                        if (result == MessageBoxResult.Yes)
+                        {
+                            // Restart the import
+                            IsImporting = true;
+                            ImportProgress = 0;
+                            ImportStatus = loc["StartingImport"];
+                            i = -1; // Reset to start from beginning
+                            totalResultsImported = 0;
+                            successCount = 0;
+                            failureCount = 0;
+                            continue;
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    // Skip if import fails for this swimmer and continue with next
+                    failureCount++;
+                    System.Diagnostics.Debug.WriteLine($"Error importing {swimmer.DisplayName}: {ex.Message}");
+                    continue;
+                }
+            }
 
             IsImporting = false;
-            ImportProgress = 0;
+            ImportProgress = 100;
             ImportStatus = "";
 
+            string message = failureCount == 0 
+                ? $"Import from {sourceLabel} complete! Added {totalResultsImported} results for {successCount} swimmers."
+                : $"Import from {sourceLabel} complete with errors!\nSuccessful: {successCount} swimmers\nFailed: {failureCount} swimmers\nTotal results: {totalResultsImported}";
+
             MessageBox.Show(
-                string.Format(loc["ImportCompleteMessage"], swimmerCount, resultCount),
+                message,
                 loc["ImportCompleteTitle"], 
                 MessageBoxButton.OK, 
                 MessageBoxImage.Information);
@@ -305,11 +495,18 @@ public partial class MainViewModel : ObservableObject
             ImportProgress = 0;
             ImportStatus = "";
             MessageBox.Show(
-                string.Format(loc["ImportErrorMessage"], ex.Message, ex.InnerException?.Message ?? ""), 
-                loc["ImportErrorTitle"], 
+                $"Import failed: {ex.Message}\n\n{ex.InnerException?.Message ?? ""}", 
+                loc["ImportFailedTitle"], 
                 MessageBoxButton.OK, 
                 MessageBoxImage.Error);
         }
+    }
+
+    [RelayCommand]
+    private async Task ImportData()
+    {
+        // Keep this for backward compatibility, but delegate to SwimRankings
+        await ImportFromSwimRankings();
     }
 
     [RelayCommand]
@@ -433,6 +630,16 @@ public partial class MainViewModel : ObservableObject
         LoadPersonalRecords();
     }
 
+    private void OnSelectableCourseChanged()
+    {
+        if (_isInitializing) return;
+        SaveSelections();
+        BuildChart();
+        LoadPersonalRecords();
+    }
+
+    private List<Course> GetSelectedCourses() => SelectableCourses.Where(c => c.IsSelected).Select(c => c.CourseValue).ToList();
+
     partial void OnSelectedPersonalRecordChanged(PersonalRecordViewModel? value)
     {
         // Rebuild chart to highlight the selected swimmer's line
@@ -526,8 +733,9 @@ public partial class MainViewModel : ObservableObject
 
         // Get selected swimmers from checkboxes
         var selectedSwimmers = SelectableSwimmers.Where(s => s.IsSelected).Select(s => s.Swimmer).ToList();
+        var selectedCourses = GetSelectedCourses();
 
-        if (SelectedStroke != null && SelectedDistance != null && App.Services != null)
+        if (SelectedStroke != null && SelectedDistance != null && selectedCourses.Any() && App.Services != null)
         {
             try
             {
@@ -546,7 +754,8 @@ public partial class MainViewModel : ObservableObject
                         .Include(r => r.Event)
                         .Where(r => selectedSwimmerIds.Contains(r.SwimmerId) &&
                                    r.Event!.Stroke == SelectedStroke.Stroke && 
-                                   r.Event.DistanceMeters == SelectedDistance.Value)
+                                   r.Event.DistanceMeters == SelectedDistance.Value &&
+                                   selectedCourses.Contains(r.Course))
                         .ToListAsync();
 
                     if (selectedSwimmerResults.Any())
@@ -564,7 +773,8 @@ public partial class MainViewModel : ObservableObject
                         .Where(r => r.Event!.Stroke == SelectedStroke.Stroke && 
                                    r.Event.DistanceMeters == SelectedDistance.Value &&
                                    r.Date >= minDate.Value &&
-                                   r.Date <= maxDate.Value)
+                                   r.Date <= maxDate.Value &&
+                                   selectedCourses.Contains(r.Course))
                         .OrderBy(r => r.Date)
                         .ToListAsync();
 
@@ -593,15 +803,6 @@ public partial class MainViewModel : ObservableObject
                             MarkerType = MarkerType.None
                         };
 
-                        var cumulativeMedian = new SwimTimeSeries
-                        {
-                            Title = loc["ClubMedian"],
-                            Color = OxyColor.FromRgb(230, 159, 0),  // Orange (color-blind safe)
-                            StrokeThickness = 2.5,
-                            LineStyle = LineStyle.Dot,
-                            MarkerType = MarkerType.None
-                        };
-
                         var cumulativeMax = new SwimTimeSeries
                         {
                             Title = loc["ClubSlowest"],
@@ -621,12 +822,10 @@ public partial class MainViewModel : ObservableObject
 
                             var dateValue = DateTimeAxis.ToDouble(stat.Date);
                             cumulativeMin.Points.Add(new DataPoint(dateValue, runningMin));
-                            cumulativeMedian.Points.Add(new DataPoint(dateValue, stat.Median));
                             cumulativeMax.Points.Add(new DataPoint(dateValue, runningMax));
                         }
 
                         pm.Series.Add(cumulativeMin);
-                        pm.Series.Add(cumulativeMedian);
                         pm.Series.Add(cumulativeMax);
                     }
                 }
@@ -653,17 +852,23 @@ public partial class MainViewModel : ObservableObject
                     int colorIndex = 0;
                     foreach (var swimmer in selectedSwimmers)
                     {
-                        var results = await resultService.GetResultsAsync(swimmer.Id, SelectedStroke.Stroke, SelectedDistance);
+                        // Get results for each selected course and combine them
+                        var combinedResults = new List<Result>();
+                        foreach (var course in selectedCourses)
+                        {
+                            var courseResults = await resultService.GetResultsAsync(swimmer.Id, SelectedStroke.Stroke, SelectedDistance, course);
+                            combinedResults.AddRange(courseResults);
+                        }
                         
-                        if (results.Any())
+                        if (combinedResults.Any())
                         {
                             // Check if this swimmer is selected in the personal records table
                             bool isHighlighted = SelectedPersonalRecord != null && 
-                                                SelectedPersonalRecord.SwimmerName == swimmer.Name;
+                                                SelectedPersonalRecord.SwimmerName == swimmer.DisplayName;
                             
                             var series = new SwimTimeSeries 
                             { 
-                                Title = swimmer.Name,
+                                Title = swimmer.DisplayName,
                                 Color = colorPalette[colorIndex % colorPalette.Length],
                                 MarkerType = MarkerType.Circle,
                                 MarkerSize = isHighlighted ? 7 : 5,
@@ -687,7 +892,7 @@ public partial class MainViewModel : ObservableObject
                                     MarkerType = MarkerType.None
                                 };
                                 
-                                foreach (var r in results)
+                                foreach (var r in combinedResults)
                                 {
                                     shadowSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(r.Date), r.TimeSeconds));
                                 }
@@ -695,10 +900,9 @@ public partial class MainViewModel : ObservableObject
                                 pm.Series.Add(shadowSeries);
                             }
                             
-                            foreach (var r in results)
+                            foreach (var r in combinedResults)
                             {
-                                var dataPoint = new DataPoint(DateTimeAxis.ToDouble(r.Date), r.TimeSeconds);
-                                series.Points.Add(dataPoint);
+                                series.AddDataPoint(DateTimeAxis.ToDouble(r.Date), r.TimeSeconds, r.Location);
                             }
                             
                             pm.Series.Add(series);
@@ -707,9 +911,11 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // If query fails, show empty chart
+                // Log the error for debugging
+                System.Diagnostics.Debug.WriteLine($"[BuildChart] Error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[BuildChart] StackTrace: {ex.StackTrace}");
             }
         }
 
@@ -717,7 +923,7 @@ public partial class MainViewModel : ObservableObject
         
         // Update empty state flags
         HasNoData = !SelectableSwimmers.Any();
-        HasSwimmersSelected = !selectedSwimmers.Any() && SelectableSwimmers.Any();
+        HasSwimmersSelected = selectedSwimmers.Any();
     }
 
     private void LoadPersonalRecords()
@@ -725,7 +931,8 @@ public partial class MainViewModel : ObservableObject
         PersonalRecords.Clear();
         
         if (App.Services == null) return;
-        if (SelectedStroke == null || SelectedDistance == null) return;
+        var selectedCourses = GetSelectedCourses();
+        if (SelectedStroke == null || SelectedDistance == null || !selectedCourses.Any()) return;
         
         var selectedSwimmers = SelectableSwimmers.Where(s => s.IsSelected).ToList();
         if (!selectedSwimmers.Any()) return;
@@ -739,25 +946,24 @@ public partial class MainViewModel : ObservableObject
             var currentStroke = SelectedStroke.Stroke;
             var currentDistance = SelectedDistance.Value;
 
-            // Define seasons (Sept 1 to Aug 31)
+            // Define calendar years (Jan 1 to Dec 31)
             var today = DateTime.Today;
-            var currentSeasonStart = new DateTime(
-                today.Month >= 9 ? today.Year : today.Year - 1, 
-                9, 1);
-            var currentSeasonEnd = currentSeasonStart.AddYears(1).AddDays(-1);
+            var currentYearStart = new DateTime(today.Year, 1, 1);
+            var currentYearEnd = new DateTime(today.Year, 12, 31);
             
-            var previousSeasonStart = currentSeasonStart.AddYears(-1);
-            var previousSeasonEnd = currentSeasonStart.AddDays(-1);
+            var previousYearStart = currentYearStart.AddYears(-1);
+            var previousYearEnd = currentYearStart.AddDays(-1);
 
             // Get swimmer IDs
             var swimmerIds = selectedSwimmers.Select(s => s.Swimmer.Id).ToList();
 
-            // Single query to get all results for selected swimmers/stroke/distance
+            // Single query to get all results for selected swimmers/stroke/distance/courses
             var allResults = db.Results
                 .Include(r => r.Event)
                 .Where(r => swimmerIds.Contains(r.SwimmerId) && 
                            r.Event!.Stroke == currentStroke && 
-                           r.Event.DistanceMeters == currentDistance)
+                           r.Event.DistanceMeters == currentDistance &&
+                           selectedCourses.Contains(r.Course))
                 .OrderBy(r => r.SwimmerId)
                 .ThenBy(r => r.TimeSeconds)
                 .ToList();
@@ -775,15 +981,15 @@ public partial class MainViewModel : ObservableObject
                 // All-time best
                 var bestResult = swimmerResults.First();
 
-                // Current season best (Sept 1 - Aug 31)
-                var seasonalBest = swimmerResults
-                    .Where(r => r.Date >= currentSeasonStart && r.Date <= currentSeasonEnd)
+                // Current year best (Jan 1 - Dec 31)
+                var yearlyBest = swimmerResults
+                    .Where(r => r.Date >= currentYearStart && r.Date <= currentYearEnd)
                     .OrderBy(r => r.TimeSeconds)
                     .FirstOrDefault();
 
-                // Previous season best
-                var previousSeasonalBest = swimmerResults
-                    .Where(r => r.Date >= previousSeasonStart && r.Date <= previousSeasonEnd)
+                // Previous year best
+                var previousYearlyBest = swimmerResults
+                    .Where(r => r.Date >= previousYearStart && r.Date <= previousYearEnd)
                     .OrderBy(r => r.TimeSeconds)
                     .FirstOrDefault();
 
@@ -795,18 +1001,19 @@ public partial class MainViewModel : ObservableObject
                     BestTime = bestResult.TimeSeconds,
                     BestTimeFormatted = FormatSwimTime(bestResult.TimeSeconds),
                     Date = bestResult.Date,
-                    SeasonalBest = seasonalBest?.TimeSeconds,
-                    SeasonalBestFormatted = seasonalBest != null ? FormatSwimTime(seasonalBest.TimeSeconds) : "-",
-                    SeasonalBestDate = seasonalBest?.Date,
-                    PreviousSeasonalBest = previousSeasonalBest?.TimeSeconds,
-                    PreviousSeasonalBestFormatted = previousSeasonalBest != null ? FormatSwimTime(previousSeasonalBest.TimeSeconds) : "-",
-                    PreviousSeasonalBestDate = previousSeasonalBest?.Date
+                    SeasonalBest = yearlyBest?.TimeSeconds,
+                    SeasonalBestFormatted = yearlyBest != null ? FormatSwimTime(yearlyBest.TimeSeconds) : "-",
+                    SeasonalBestDate = yearlyBest?.Date,
+                    PreviousSeasonalBest = previousYearlyBest?.TimeSeconds,
+                    PreviousSeasonalBestFormatted = previousYearlyBest != null ? FormatSwimTime(previousYearlyBest.TimeSeconds) : "-",
+                    PreviousSeasonalBestDate = previousYearlyBest?.Date
                 });
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail if unable to load personal records
+            System.Diagnostics.Debug.WriteLine($"[LoadPersonalRecords] Error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[LoadPersonalRecords] StackTrace: {ex.StackTrace}");
         }
     }
 

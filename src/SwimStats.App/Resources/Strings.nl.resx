@@ -226,4 +226,19 @@
   <data name="NoDataAvailable" xml:space="preserve">
     <value>Geen gegevens beschikbaar. Klik op "Importeren van SwimTrack" om zwemgegevens te laden.</value>
   </data>
+  <data name="CheckingConnection" xml:space="preserve">
+    <value>Verbinding controleren...</value>
+  </data>
+  <data name="WebsiteUnavailableTitle" xml:space="preserve">
+    <value>Website niet beschikbaar</value>
+  </data>
+  <data name="WebsiteUnavailableMessage" xml:space="preserve">
+    <value>De SwimRankings website is momenteel niet beschikbaar of bereikbaar. Controleer uw internetverbinding en probeer het later opnieuw.</value>
+  </data>
+  <data name="ImportFailedTitle" xml:space="preserve">
+    <value>Importeren mislukt</value>
+  </data>
+  <data name="ImportFailedMessage" xml:space="preserve">
+    <value>Importeren van gegevens van SwimRankings mislukt:</value>
+  </data>
 </root>

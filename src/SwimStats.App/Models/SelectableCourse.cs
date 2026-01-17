@@ -3,19 +3,19 @@ using SwimStats.Core.Models;
 
 namespace SwimStats.App.Models
 {
-    public partial class SelectableSwimmer : ObservableObject
+    public partial class SelectableCourse : ObservableObject
     {
-        public Swimmer Swimmer { get; }
+        public Course CourseValue { get; }
 
         [ObservableProperty]
         private bool isSelected;
 
-        public string Name => Swimmer.DisplayName;
-        public int Id => Swimmer.Id;
+        public string Name { get; }
 
-        public SelectableSwimmer(Swimmer swimmer)
+        public SelectableCourse(Course course, string displayName)
         {
-            Swimmer = swimmer;
+            CourseValue = course;
+            Name = displayName;
         }
 
         partial void OnIsSelectedChanged(bool value)

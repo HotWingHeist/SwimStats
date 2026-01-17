@@ -16,9 +16,45 @@ public class SwimTrackImporter : ISwimTrackImporter
     public SwimTrackImporter(SwimStatsDbContext db, Action<int, int, string>? progressCallback = null)
     {
         _db = db;
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        
+        // Create HttpClient with automatic decompression and browser headers
+        var handler = new HttpClientHandler();
+        handler.AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate;
+        
+        _httpClient = new HttpClient(handler);
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        _httpClient.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+        _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
+        _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate");
+        _httpClient.DefaultRequestHeaders.Add("DNT", "1");
+        _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
+        _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
+        _httpClient.Timeout = TimeSpan.FromSeconds(60);
         _progressCallback = progressCallback;
+    }
+
+    /// <summary>
+    /// Checks if the SwimTrack website is reachable
+    /// </summary>
+    public async Task<bool> IsWebsiteReachableAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync("https://www.swimtrack.nl", HttpCompletionOption.ResponseHeadersRead);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task<int> ImportSwimmersAsync(string baseUrl)
@@ -70,7 +106,12 @@ public class SwimTrackImporter : ISwimTrackImporter
                         var existingSwimmer = await _db.Swimmers.FirstOrDefaultAsync(s => s.Name == name);
                         if (existingSwimmer == null)
                         {
-                            _db.Swimmers.Add(new Swimmer { Name = name });
+                            var names = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                            _db.Swimmers.Add(new Swimmer 
+                            { 
+                                FirstName = names.Length > 0 ? names[0] : "",
+                                LastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : ""
+                            });
                             count++;
                         }
                     }
@@ -149,7 +190,12 @@ public class SwimTrackImporter : ISwimTrackImporter
                         var swimmer = await _db.Swimmers.FirstOrDefaultAsync(s => s.Name == swimmerName);
                         if (swimmer == null)
                         {
-                            swimmer = new Swimmer { Name = swimmerName };
+                            var names = swimmerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                            swimmer = new Swimmer 
+                            { 
+                                FirstName = names.Length > 0 ? names[0] : "",
+                                LastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : ""
+                            };
                             _db.Swimmers.Add(swimmer);
                             await _db.SaveChangesAsync();
                         }
@@ -228,12 +274,13 @@ public class SwimTrackImporter : ISwimTrackImporter
                     if (seconds == null) continue;
                     
                     // Find or create the event (cache this in memory to avoid DB calls)
+                    // SwimTrack data is short course (25m) by default if not specified
                     var evt = await _db.Events.FirstOrDefaultAsync(e => 
-                        e.Stroke == stroke.Value && e.DistanceMeters == distance);
+                        e.Stroke == stroke.Value && e.DistanceMeters == distance && e.Course == Course.ShortCourse);
                     
                     if (evt == null)
                     {
-                        evt = new Event { Stroke = stroke.Value, DistanceMeters = distance };
+                        evt = new Event { Stroke = stroke.Value, DistanceMeters = distance, Course = Course.ShortCourse };
                         _db.Events.Add(evt);
                         await _db.SaveChangesAsync(); // Save to get the ID
                     }
@@ -323,4 +370,135 @@ public class SwimTrackImporter : ISwimTrackImporter
             return null;
         }
     }
+
+    public async Task<int> ImportSwimmerByNameAsync(string firstName, string lastName)
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"[SwimTrack] Importing swimmer: {firstName} {lastName}");
+            
+            var fullName = $"{firstName} {lastName}".Trim();
+            var baseUrl = "https://www.swimtrack.nl/ez-pc/perstijden.php";
+            
+            // Get the main page to find the swimmer dropdown
+            var html = await _httpClient.GetStringAsync(baseUrl);
+            
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            // Find the swimmer in the dropdown
+            var selectNode = doc.DocumentNode.SelectSingleNode("//select[@name='zwemmer' or @id='zwemmer' or @name='swimmer' or @id='swimmer']");
+            
+            if (selectNode == null)
+            {
+                selectNode = doc.DocumentNode.SelectSingleNode("//select");
+            }
+
+            if (selectNode == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimTrack] ERROR: No select element found");
+                throw new Exception("Could not find swimmer dropdown on SwimTrack");
+            }
+
+            var options = selectNode.SelectNodes(".//option");
+            
+            if (options == null || options.Count == 0)
+            {
+                throw new Exception("No swimmers found in dropdown");
+            }
+
+            // Find the matching swimmer
+            HtmlNode matchingOption = null;
+            foreach (var option in options)
+            {
+                var name = System.Net.WebUtility.HtmlDecode(option.InnerText.Trim());
+                if (name.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchingOption = option;
+                    break;
+                }
+            }
+
+            if (matchingOption == null)
+            {
+                // Swimmer not found - try partial match
+                foreach (var option in options)
+                {
+                    var name = System.Net.WebUtility.HtmlDecode(option.InnerText.Trim());
+                    if (name.Contains(firstName, StringComparison.OrdinalIgnoreCase) && 
+                        name.Contains(lastName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        matchingOption = option;
+                        break;
+                    }
+                }
+            }
+
+            if (matchingOption == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimTrack] Swimmer not found: {fullName}");
+                return 0; // Swimmer not found, but don't fail
+            }
+
+            var swimmerValue = matchingOption.GetAttributeValue("value", "");
+            if (string.IsNullOrEmpty(swimmerValue))
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimTrack] ERROR: Swimmer option has no value attribute");
+                return 0;
+            }
+
+            // Get or create swimmer in database
+            var swimmer = await _db.Swimmers.FirstOrDefaultAsync(s => 
+                s.FirstName == firstName && s.LastName == lastName);
+            if (swimmer == null)
+            {
+                swimmer = new Swimmer 
+                { 
+                    FirstName = firstName,
+                    LastName = lastName,
+                    Name = fullName  // Keep for backward compatibility
+                };
+                _db.Swimmers.Add(swimmer);
+                await _db.SaveChangesAsync();
+            }
+
+            // Construct the full URL for this swimmer's page
+            var baseUri = new Uri(baseUrl);
+            var swimmerUrl = new Uri(baseUri, swimmerValue).ToString();
+            
+            // Fetch this swimmer's page
+            var swimmerHtml = await _httpClient.GetStringAsync(swimmerUrl);
+            
+            var swimmerDoc = new HtmlDocument();
+            swimmerDoc.LoadHtml(swimmerHtml);
+
+            // Parse results from this swimmer's page
+            var count = await ParseSwimmerResults(swimmerDoc, swimmer.Id);
+            System.Diagnostics.Debug.WriteLine($"[SwimTrack] Parsed {count} results for {fullName}");
+            
+            return count;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SwimTrack] Error importing swimmer {firstName} {lastName}: {ex.Message}");
+            return 0;
+        }
+    }
+
+    public async Task<int> ImportSingleSwimmerAsync(string swimmerName)
+    {
+        try
+        {
+            var names = swimmerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var firstName = names.Length > 0 ? names[0] : "";
+            var lastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "";
+            
+            return await ImportSwimmerByNameAsync(firstName, lastName);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
 }
+

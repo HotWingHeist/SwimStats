@@ -60,7 +60,7 @@ public partial class App : Application
 
 			services.AddDbContext<SwimStatsDbContext>(opts => opts.UseSqlite($"Data Source={dbPath}"));
 			services.AddScoped<IResultService, ResultService>();
-			services.AddScoped<ISwimTrackImporter, SwimTrackImporter>();
+			services.AddScoped<ISwimTrackImporter, SwimRankingsImporter>();
 
 			Services = services.BuildServiceProvider();
 			Log("Services configured");
@@ -71,6 +71,17 @@ public partial class App : Application
 				var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
 				db.Database.EnsureCreated();
 				Log("Database ensured");
+				
+				// Seed swimmers from configuration file
+				try
+				{
+					db.SeedSwimmersFromConfiguration();
+					Log("Swimmers seeded from configuration");
+				}
+				catch (Exception seedEx)
+				{
+					Log($"Warning: Could not seed swimmers: {seedEx.Message}");
+				}
 				
 				// Add performance indexes if they don't exist
 				try

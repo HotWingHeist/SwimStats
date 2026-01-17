@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:oxy="http://oxyplot.org/wpf"
         xmlns:local="clr-namespace:SwimStats.App"
+        xmlns:controls="clr-namespace:SwimStats.App.Controls"
         xmlns:converters="clr-namespace:SwimStats.App.Converters"
         xmlns:res="clr-namespace:SwimStats.App.Resources"
         mc:Ignorable="d"
@@ -16,6 +17,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <local:InverseBooleanConverter x:Key="InverseBoolConverter"/>
         <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+        <converters:CourseToDisplayNameConverter x:Key="CourseToDisplayNameConverter"/>
         
         <!-- Modern Button Style -->
         <Style x:Key="ModernButton" TargetType="Button">
@@ -81,6 +83,9 @@
                     <ColumnDefinition Width="*" MinWidth="100" MaxWidth="140"/>
                     <ColumnDefinition Width="Auto" MinWidth="15"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="Auto" MinWidth="15"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="2*" MinWidth="200"/>
                     <ColumnDefinition Width="Auto" MinWidth="15"/>
                     <ColumnDefinition Width="Auto"/>
@@ -104,22 +109,39 @@
                           SelectedItem="{Binding SelectedDistance}"
                           IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"/>
                 
-                <TextBlock Grid.Column="6" VerticalAlignment="Center" FontWeight="SemiBold" Text="{res:Localize Swimmers}" Foreground="#FF333333"/>
-                <ComboBox Grid.Column="7" VerticalAlignment="Center"
+                <TextBlock Grid.Column="6" VerticalAlignment="Center" FontWeight="SemiBold" Text="Course" Foreground="#FF333333"/>
+                <controls:CheckboxComboBox Grid.Column="7" VerticalAlignment="Center" 
+                          Panel.ZIndex="1000"
+                          Style="{StaticResource ModernComboBox}"
+                          ItemsSource="{Binding SelectableCourses}"
+                          IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}">
+                    <controls:CheckboxComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding Name}" 
+                                      IsChecked="{Binding IsSelected}"
+                                      Click="CourseCheckBox_Click"
+                                      Margin="2"/>
+                        </DataTemplate>
+                    </controls:CheckboxComboBox.ItemTemplate>
+                </controls:CheckboxComboBox>
+                
+                <TextBlock Grid.Column="9" VerticalAlignment="Center" FontWeight="SemiBold" Text="{res:Localize Swimmers}" Foreground="#FF333333"/>
+                <controls:CheckboxComboBox Grid.Column="10" VerticalAlignment="Center"
                           Style="{StaticResource ModernComboBox}"
                           ItemsSource="{Binding SelectableSwimmers}"
-                          IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}">
-                    <ComboBox.ItemTemplate>
+                          IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
+                          MaxDisplayLength="40">
+                    <controls:CheckboxComboBox.ItemTemplate>
                         <DataTemplate>
                             <CheckBox Content="{Binding Name}" 
                                       IsChecked="{Binding IsSelected}"
                                       Click="CheckBox_Click"
                                       Margin="2"/>
                         </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
+                    </controls:CheckboxComboBox.ItemTemplate>
+                </controls:CheckboxComboBox>
                 <!-- Select All/None buttons -->
-                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                <StackPanel Grid.Column="11" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                     <Button Style="{StaticResource ModernButton}"
                             Command="{Binding SelectAllSwimmersCommand}"
                             Background="#FF009E73"
@@ -139,8 +161,8 @@
                     </Button>
                 </StackPanel>
                 
-                <TextBlock Grid.Column="9" VerticalAlignment="Center" FontWeight="SemiBold" Text="{res:Localize Language}" Foreground="#FF333333"/>
-                <ComboBox Grid.Column="10" VerticalAlignment="Center" 
+                <TextBlock Grid.Column="13" VerticalAlignment="Center" FontWeight="SemiBold" Text="{res:Localize Language}" Foreground="#FF333333"/>
+                <ComboBox Grid.Column="14" VerticalAlignment="Center" 
                           Style="{StaticResource ModernComboBox}"
                           SelectedIndex="0" SelectionChanged="Language_SelectionChanged">
                     <ComboBoxItem Content="English" Tag="en"/>
@@ -148,7 +170,7 @@
                 </ComboBox>
                 
                 <!-- EZ-PC Logo -->
-                <Viewbox Grid.Column="12" 
+                <Viewbox Grid.Column="15" 
                          Height="50" 
                          HorizontalAlignment="Right" 
                          VerticalAlignment="Center"
@@ -171,12 +193,23 @@
             <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button 
                     Style="{StaticResource ModernButton}"
-                    Command="{Binding ImportDataCommand}" 
+                    Command="{Binding ImportFromSwimRankingsCommand}" 
                     IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
                     Background="#FF0072B2">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="📥 " FontSize="16" Margin="0,0,6,0"/>
-                        <TextBlock Text="{res:Localize ImportButton}" Foreground="White" FontSize="13"/>
+                        <TextBlock Text="SwimRankings" Foreground="White" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+                <Button 
+                    Style="{StaticResource ModernButton}"
+                    Margin="8,0,0,0"
+                    Command="{Binding ImportFromSwimTrackCommand}" 
+                    IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
+                    Background="#FF0072B2">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="📥 " FontSize="16" Margin="0,0,6,0"/>
+                        <TextBlock Text="SwimTrack" Foreground="White" FontSize="13"/>
                     </StackPanel>
                 </Button>
                 <Button 
@@ -233,13 +266,13 @@
                 <oxy:PlotView Grid.Row="0" 
                               x:Name="ChartPlotView"
                               Model="{Binding PlotModel}"
-                              Visibility="{Binding HasSwimmersSelected, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                              Visibility="{Binding HasSwimmersSelected, Converter={StaticResource BoolToVisibilityConverter}}" />
                 
                 <!-- Empty state message - No swimmers selected -->
                 <StackPanel Grid.Row="0" 
                             VerticalAlignment="Center" 
                             HorizontalAlignment="Center"
-                            Visibility="{Binding HasSwimmersSelected, Converter={StaticResource BoolToVisibilityConverter}}">
+                            Visibility="{Binding HasSwimmersSelected, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                     <TextBlock Text="📊" FontSize="48" HorizontalAlignment="Center" Opacity="0.3" Margin="0,0,0,10"/>
                     <TextBlock Text="{res:Localize NoSwimmersSelected}" 
                                FontSize="14" 

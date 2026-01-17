@@ -111,6 +111,26 @@ public partial class MainWindow : Window
         }
     }
 
+    private void CourseCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        // Keep the dropdown open when clicking course checkboxes
+        var checkBox = sender as CheckBox;
+        if (checkBox != null)
+        {
+            var comboBox = FindParent<ComboBox>(checkBox);
+            if (comboBox != null)
+            {
+                comboBox.IsDropDownOpen = true;
+            }
+        }
+        
+        // Trigger chart rebuild
+        if (this.DataContext is ViewModels.MainViewModel viewModel)
+        {
+            viewModel.RefreshChart();
+        }
+    }
+
     private void Language_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var comboBox = sender as ComboBox;
