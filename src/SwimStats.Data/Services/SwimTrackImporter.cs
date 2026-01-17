@@ -34,32 +34,96 @@ public class SwimTrackImporter : ISwimTrackImporter
     }
 
     /// <summary>
-    /// Checks if the SwimTrack website is reachable with a fast timeout
+    /// Checks if the SwimTrack website is reachable with robust probing:
+    /// 1) DNS resolution, 2) quick HEAD, 3) lightweight GET fallback.
+    /// Uses short timeouts and a single retry with backoff.
     /// </summary>
     public async Task<bool> IsWebsiteReachableAsync()
     {
+        var host = "www.swimtrack.nl";
+        var baseUrl = "https://www.swimtrack.nl";
+
+        // 1) DNS resolution check (quick)
         try
         {
-            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10)); // Fast 10-second timeout for connectivity check
-            var response = await _httpClient.GetAsync("https://www.swimtrack.nl", HttpCompletionOption.ResponseHeadersRead, cts.Token);
-            return response.IsSuccessStatusCode;
+            var dnsTask = System.Net.Dns.GetHostAddressesAsync(host);
+            var completed = await Task.WhenAny(dnsTask, Task.Delay(3000));
+            if (completed != dnsTask)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] DNS resolution timed out for SwimTrack");
+                return false;
+            }
+            var addresses = await dnsTask;
+            if (addresses == null || addresses.Length == 0)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] DNS resolution returned no addresses for SwimTrack");
+                return false;
+            }
         }
-        catch (HttpRequestException)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[Reachability] DNS resolution failed: {ex.Message}");
             return false;
         }
-        catch (TaskCanceledException)
+
+        // 2) Quick HEAD request; some servers may not support HEAD so ignore 405 and fallback
+        async Task<bool> HeadProbeAsync()
         {
-            return false;
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var req = new HttpRequestMessage(HttpMethod.Head, baseUrl);
+                var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                if ((int)resp.StatusCode == 405)
+                {
+                    // Method Not Allowed: server may not support HEAD; fallback to GET
+                    return false;
+                }
+                return (int)resp.StatusCode < 500; // treat 2xx/3xx/4xx (except 5xx) as reachable
+            }
+            catch (TaskCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] HEAD probe timed out");
+                return false;
+            }
+            catch (HttpRequestException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Reachability] HEAD probe request error: {ex.Message}");
+                return false;
+            }
         }
-        catch (OperationCanceledException)
+
+        // 3) Lightweight GET for robots.txt or base page headers
+        async Task<bool> GetProbeAsync()
         {
-            return false;
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(7));
+                var resp = await _httpClient.GetAsync(baseUrl + "/robots.txt", HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // robots.txt not present; try base page headers only
+                    resp = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                }
+                return (int)resp.StatusCode < 500;
+            }
+            catch (TaskCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] GET probe timed out");
+                return false;
+            }
+            catch (HttpRequestException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Reachability] GET probe request error: {ex.Message}");
+                return false;
+            }
         }
-        catch
-        {
-            return false;
-        }
+
+        // Try HEAD, then GET with a single retry and simple backoff
+        if (await HeadProbeAsync()) return true;
+        if (await GetProbeAsync()) return true;
+        await Task.Delay(500);
+        return await GetProbeAsync();
     }
 
     public async Task<int> ImportSwimmersAsync(string baseUrl)
@@ -206,8 +270,8 @@ public class SwimTrackImporter : ISwimTrackImporter
                         }
 
                         // Parse results from this swimmer's page
-                        var count = await ParseSwimmerResults(swimmerDoc, swimmer.Id);
-                        totalCount += count;
+                        var (retrieved, added, existing) = await ParseSwimmerResults(swimmerDoc, swimmer.Id);
+                        totalCount += added;
 
                         // Small delay to be polite to the server (reduced from 500ms to 200ms)
                         await Task.Delay(200);
@@ -223,9 +287,10 @@ public class SwimTrackImporter : ISwimTrackImporter
         }
     }
 
-    private async Task<int> ParseSwimmerResults(HtmlDocument doc, int swimmerId)
+    private async Task<(int retrieved, int newCount, int existing)> ParseSwimmerResults(HtmlDocument doc, int swimmerId)
     {
-        int count = 0;
+        int newCount = 0;
+        int existingCount = 0;
 
         // Look for all links with href containing "slag=" (stroke) and title="Gezwommen op" (swum on)
         // Exclude links that contain "tuss" (tussentijden = intermediate times)
@@ -322,19 +387,25 @@ public class SwimTrackImporter : ISwimTrackImporter
                     if (!exists)
                     {
                         _db.Results.Add(newResult);
-                        count++;
+                        newCount++;
+                    }
+                    else
+                    {
+                        existingCount++;
                     }
                 }
                 
                 // Single save for all results
-                if (count > 0)
+                if (newCount > 0)
                 {
                     await _db.SaveChangesAsync();
                 }
+                
+                return (resultsToAdd.Count, newCount, existingCount);
             }
         }
 
-        return count;
+        return (0, 0, 0);
     }
 
     private Stroke? ParseStroke(string strokeName)
@@ -376,7 +447,7 @@ public class SwimTrackImporter : ISwimTrackImporter
         }
     }
 
-    public async Task<int> ImportSwimmerByNameAsync(string firstName, string lastName)
+    public async Task<(int retrieved, int newCount, int existing)> ImportSwimmerByNameAsync(string firstName, string lastName)
     {
         try
         {
@@ -442,14 +513,14 @@ public class SwimTrackImporter : ISwimTrackImporter
             if (matchingOption == null)
             {
                 System.Diagnostics.Debug.WriteLine($"[SwimTrack] Swimmer not found: {fullName}");
-                return 0; // Swimmer not found, but don't fail
+                return (0, 0, 0); // Swimmer not found, but don't fail
             }
 
             var swimmerValue = matchingOption.GetAttributeValue("value", "");
             if (string.IsNullOrEmpty(swimmerValue))
             {
                 System.Diagnostics.Debug.WriteLine($"[SwimTrack] ERROR: Swimmer option has no value attribute");
-                return 0;
+                return (0, 0, 0);
             }
 
             // Get or create swimmer in database
@@ -478,19 +549,19 @@ public class SwimTrackImporter : ISwimTrackImporter
             swimmerDoc.LoadHtml(swimmerHtml);
 
             // Parse results from this swimmer's page
-            var count = await ParseSwimmerResults(swimmerDoc, swimmer.Id);
-            System.Diagnostics.Debug.WriteLine($"[SwimTrack] Parsed {count} results for {fullName}");
+            var (retrieved, newCount, existingCount) = await ParseSwimmerResults(swimmerDoc, swimmer.Id);
+            System.Diagnostics.Debug.WriteLine($"[SwimTrack] Parsed {retrieved} results for {fullName}");
             
-            return count;
+            return (retrieved, newCount, existingCount);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SwimTrack] Error importing swimmer {firstName} {lastName}: {ex.Message}");
-            return 0;
+            return (0, 0, 0);
         }
     }
 
-    public async Task<int> ImportSingleSwimmerAsync(string swimmerName)
+    public async Task<(int retrieved, int newCount, int existing)> ImportSingleSwimmerAsync(string swimmerName)
     {
         try
         {
@@ -502,7 +573,7 @@ public class SwimTrackImporter : ISwimTrackImporter
         }
         catch
         {
-            return 0;
+            return (0, 0, 0);
         }
     }
 }

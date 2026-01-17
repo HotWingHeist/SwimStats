@@ -109,20 +109,24 @@ public class SwimTrackImporterTests : IDisposable
     public async Task ImportSwimmerByNameAsyncHandlesNonexistentSwimmer()
     {
         // Test importing a swimmer that doesn't exist on SwimTrack
-        var result = await _importer.ImportSwimmerByNameAsync("NonExistent", "Swimmer");
+        var (retrieved, newCount, existing) = await _importer.ImportSwimmerByNameAsync("NonExistent", "Swimmer");
         
         // Should return 0 results without throwing
-        Assert.Equal(0, result);
+        Assert.Equal(0, retrieved);
+        Assert.Equal(0, newCount);
+        Assert.Equal(0, existing);
     }
 
     [Fact]
     public async Task ImportSingleSwimmerAsyncSplitsNameCorrectly()
     {
         // Test that full name is split into first/last correctly
-        var result = await _importer.ImportSingleSwimmerAsync("NonExistent Swimmer");
+        var (retrieved, newCount, existing) = await _importer.ImportSingleSwimmerAsync("NonExistent Swimmer");
         
         // Should return 0 results without throwing
-        Assert.Equal(0, result);
+        Assert.Equal(0, retrieved);
+        Assert.Equal(0, newCount);
+        Assert.Equal(0, existing);
     }
 
     public void Dispose()

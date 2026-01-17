@@ -417,6 +417,8 @@ public partial class MainViewModel : ObservableObject
             }
 
             int totalResultsImported = 0;
+            int totalRetrieved = 0;
+            int totalExisting = 0;
             int successCount = 0;
             int failureCount = 0;
             
@@ -429,8 +431,10 @@ public partial class MainViewModel : ObservableObject
                 
                 try
                 {
-                    var resultCount = await importer.ImportSwimmerByNameAsync(swimmer.FirstName, swimmer.LastName);
-                    totalResultsImported += resultCount;
+                    var (retrieved, newCount, existing) = await importer.ImportSwimmerByNameAsync(swimmer.FirstName, swimmer.LastName);
+                    totalRetrieved += retrieved;
+                    totalResultsImported += newCount;
+                    totalExisting += existing;
                     successCount++;
                 }
                 catch (HttpRequestException hre)
@@ -491,9 +495,24 @@ public partial class MainViewModel : ObservableObject
             System.Diagnostics.Debug.WriteLine($"[ImportDataAsync] Saved to: {dbFilePath}");
             System.Diagnostics.Debug.WriteLine($"[ImportDataAsync] After import, database has {finalResultCount} results");
 
-            string message = failureCount == 0 
-                ? $"Import from {sourceLabel} complete! Added {totalResultsImported} results for {successCount} swimmers."
-                : $"Import from {sourceLabel} complete with errors!\nSuccessful: {successCount} swimmers\nFailed: {failureCount} swimmers\nTotal results: {totalResultsImported}";
+            string message;
+            if (failureCount == 0)
+            {
+                message = $"Import from {sourceLabel} complete!\n\n" +
+                          $"Retrieved: {totalRetrieved} data points\n" +
+                          $"New records added: {totalResultsImported}\n" +
+                          $"Already existed: {totalExisting}\n" +
+                          $"Successfully processed: {successCount} swimmers";
+            }
+            else
+            {
+                message = $"Import from {sourceLabel} complete with errors!\n\n" +
+                          $"Retrieved: {totalRetrieved} data points\n" +
+                          $"New records added: {totalResultsImported}\n" +
+                          $"Already existed: {totalExisting}\n\n" +
+                          $"Successful: {successCount} swimmers\n" +
+                          $"Failed: {failureCount} swimmers";
+            }
 
             MessageBox.Show(
                 message,

@@ -42,32 +42,96 @@ public class SwimRankingsImporter : ISwimTrackImporter
     }
 
     /// <summary>
-    /// Checks if the SwimRankings website is reachable with a fast timeout
+    /// Checks if the SwimRankings website is reachable with robust probing:
+    /// 1) DNS resolution, 2) quick HEAD, 3) lightweight GET fallback.
+    /// Uses short timeouts and a single retry with backoff.
     /// </summary>
     public async Task<bool> IsWebsiteReachableAsync()
     {
+        var host = "www.swimrankings.net";
+        var baseUrl = "https://www.swimrankings.net";
+
+        // 1) DNS resolution check (quick)
         try
         {
-            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10)); // Fast 10-second timeout for connectivity check
-            var response = await _httpClient.GetAsync("https://www.swimrankings.net", HttpCompletionOption.ResponseHeadersRead, cts.Token);
-            return response.IsSuccessStatusCode;
+            var dnsTask = System.Net.Dns.GetHostAddressesAsync(host);
+            var completed = await Task.WhenAny(dnsTask, Task.Delay(3000));
+            if (completed != dnsTask)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] DNS resolution timed out for SwimRankings");
+                return false;
+            }
+            var addresses = await dnsTask;
+            if (addresses == null || addresses.Length == 0)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] DNS resolution returned no addresses for SwimRankings");
+                return false;
+            }
         }
-        catch (HttpRequestException)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[Reachability] DNS resolution failed: {ex.Message}");
             return false;
         }
-        catch (TaskCanceledException)
+
+        // 2) Quick HEAD request; some servers may not support HEAD so ignore 405 and fallback
+        async Task<bool> HeadProbeAsync()
         {
-            return false;
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var req = new HttpRequestMessage(HttpMethod.Head, baseUrl);
+                var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                if ((int)resp.StatusCode == 405)
+                {
+                    // Method Not Allowed: server may not support HEAD; fallback to GET
+                    return false;
+                }
+                return (int)resp.StatusCode < 500; // treat 2xx/3xx/4xx (except 5xx) as reachable
+            }
+            catch (TaskCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] HEAD probe timed out");
+                return false;
+            }
+            catch (HttpRequestException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Reachability] HEAD probe request error: {ex.Message}");
+                return false;
+            }
         }
-        catch (OperationCanceledException)
+
+        // 3) Lightweight GET for robots.txt or base page headers
+        async Task<bool> GetProbeAsync()
         {
-            return false;
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(7));
+                var resp = await _httpClient.GetAsync(baseUrl + "/robots.txt", HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                if (resp.StatusCode == HttpStatusCode.NotFound)
+                {
+                    // robots.txt not present; try base page headers only
+                    resp = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                }
+                return (int)resp.StatusCode < 500;
+            }
+            catch (TaskCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reachability] GET probe timed out");
+                return false;
+            }
+            catch (HttpRequestException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Reachability] GET probe request error: {ex.Message}");
+                return false;
+            }
         }
-        catch
-        {
-            return false;
-        }
+
+        // Try HEAD, then GET with a single retry and simple backoff
+        if (await HeadProbeAsync()) return true;
+        if (await GetProbeAsync()) return true;
+        await Task.Delay(500);
+        return await GetProbeAsync();
     }
 
     public async Task<int> ImportSwimmersAsync(string baseUrl)
@@ -143,16 +207,18 @@ public class SwimRankingsImporter : ISwimTrackImporter
 
     /// <summary>
     /// Imports data for a single swimmer using separate first and last names.
+    /// Returns: (retrieved, new, existing)
     /// </summary>
-    public async Task<int> ImportSwimmerByNameAsync(string firstName, string lastName)
+    public async Task<(int retrieved, int newCount, int existing)> ImportSwimmerByNameAsync(string firstName, string lastName)
     {
         return await ImportSingleSwimmerAsync($"{firstName} {lastName}");
     }
 
     /// <summary>
     /// Imports data for a single swimmer by name search.
+    /// Returns: (retrieved, new, existing)
     /// </summary>
-    public async Task<int> ImportSingleSwimmerAsync(string swimmerName)
+    public async Task<(int retrieved, int newCount, int existing)> ImportSingleSwimmerAsync(string swimmerName)
     {
         try
         {
@@ -166,40 +232,11 @@ public class SwimRankingsImporter : ISwimTrackImporter
             var lastName = string.Join(" ", names.Skip(1));
 
             _progressCallback?.Invoke(0, 100, $"Searching for {swimmerName}...");
-
-            // Try the internal AJAX endpoint that SwimRankings uses for search
-            var internalSearchUrl = $"https://www.swimrankings.net/index.php?internalRequest=athleteFind&athlete_firstname={Uri.EscapeDataString(firstName)}&athlete_lastname={Uri.EscapeDataString(lastName)}&athlete_clubId=-1&athlete_gender=-1";
-
-            string searchHtml = await FetchWithRetry(internalSearchUrl);
-            if (string.IsNullOrWhiteSpace(searchHtml))
-            {
-                throw new Exception($"No results found for {swimmerName}");
-            }
-
-            var searchDoc = new HtmlDocument();
-            searchDoc.LoadHtml(searchHtml);
-
-            // Find athlete links in the format: ?page=athleteDetail&athleteId=XXXXX
-            var athleteDetailLinks = searchDoc.DocumentNode.SelectNodes("//a[contains(@href, 'athleteDetail')]");
-
-            if (athleteDetailLinks == null || athleteDetailLinks.Count == 0)
-            {
-                throw new Exception($"No results found for {swimmerName}");
-            }
-
-            // Use the first result
-            var athleteDetailLink = athleteDetailLinks[0];
-            var detailUrl = athleteDetailLink.GetAttributeValue("href", "");
-            detailUrl = System.Net.WebUtility.HtmlDecode(detailUrl);
-
+            // Resolve athlete detail URL via AJAX search first; fallback to HTML search page if needed
+            var detailUrl = await FindAthleteDetailUrlAsync(firstName, lastName);
             if (string.IsNullOrEmpty(detailUrl))
             {
-                throw new Exception("Could not parse athlete link");
-            }
-
-            if (!detailUrl.StartsWith("http"))
-            {
-                detailUrl = "https://www.swimrankings.net/index.php" + (detailUrl.StartsWith("?") ? detailUrl : "?" + detailUrl);
+                throw new Exception($"No results found for {swimmerName}");
             }
 
             _progressCallback?.Invoke(25, 100, $"Found {swimmerName}, fetching details...");
@@ -232,11 +269,11 @@ public class SwimRankingsImporter : ISwimTrackImporter
             _progressCallback?.Invoke(50, 100, $"Parsing results for {swimmerName}...");
 
             // Parse personal bests for all ranking styles
-            var count = await ParseAllPersonalRankings(detailDoc, athleteId, existingSwimmer.Id);
+            var (retrieved, newCount, existing) = await ParseAllPersonalRankings(detailDoc, athleteId, existingSwimmer.Id);
 
             _progressCallback?.Invoke(100, 100, "Import complete!");
 
-            return count;
+            return (retrieved, newCount, existing);
         }
         catch (Exception ex)
         {
@@ -322,16 +359,16 @@ public class SwimRankingsImporter : ISwimTrackImporter
                             // Decode HTML entities (e.g., &amp; -> &)
                             detailUrl = System.Net.WebUtility.HtmlDecode(detailUrl);
                             
-                            if (!string.IsNullOrEmpty(detailUrl))
-                            {
-                                // Make detailUrl absolute if needed
-                                if (!detailUrl.StartsWith("http"))
+                                if (!string.IsNullOrEmpty(detailUrl))
                                 {
-                                    detailUrl = "https://www.swimrankings.net/index.php" + (detailUrl.StartsWith("?") ? detailUrl : "?" + detailUrl);
-                                }
+                                    // Make detailUrl absolute if needed
+                                    if (!detailUrl.StartsWith("http"))
+                                    {
+                                        detailUrl = "https://www.swimrankings.net/index.php" + (detailUrl.StartsWith("?") ? detailUrl : "?" + detailUrl);
+                                    }
 
-                                // Fetch the athlete detail page
-                                var detailHtml = await FetchWithRetry(detailUrl);
+                                    // Fetch the athlete detail page
+                                    var detailHtml = await FetchWithRetry(detailUrl);
                                 var detailDoc = new HtmlDocument();
                                 detailDoc.LoadHtml(detailHtml);
 
@@ -340,8 +377,8 @@ public class SwimRankingsImporter : ISwimTrackImporter
                                 if (athleteIdMatch.Success && int.TryParse(athleteIdMatch.Groups[1].Value, out var athleteId))
                                 {
                                     // Parse personal bests for all ranking styles
-                                    var count = await ParseAllPersonalRankings(detailDoc, athleteId, swimmer.Id);
-                                    totalCount += count;
+                                    var (retrieved, added, existing) = await ParseAllPersonalRankings(detailDoc, athleteId, swimmer.Id);
+                                    totalCount += added;
                                 }
                                 else
                                 {
@@ -371,10 +408,13 @@ public class SwimRankingsImporter : ISwimTrackImporter
     /// <summary>
     /// Extracts all personal ranking style options from the dropdown and parses each one.
     /// Each styleId represents a different event ranking (e.g., 50m Freestyle, 100m Backstroke, etc.)
+    /// Returns: (retrieved, new, existing)
     /// </summary>
-    private async Task<int> ParseAllPersonalRankings(HtmlDocument doc, int athleteId, int swimmerId)
+    private async Task<(int retrieved, int newCount, int existing)> ParseAllPersonalRankings(HtmlDocument doc, int athleteId, int swimmerId)
     {
         int totalCount = 0;
+        int totalRetrieved = 0;
+        int totalExisting = 0;
 
         try
         {
@@ -400,8 +440,10 @@ public class SwimRankingsImporter : ISwimTrackImporter
                     rankingDoc.LoadHtml(rankingHtml);
 
                     // Parse the ranking data from this specific event page
-                    var count = await ParsePersonalRankingsDropdown(rankingDoc, swimmerId, eventName);
-                    totalCount += count;
+                    var (retrieved, added, existing) = await ParsePersonalRankingsDropdown(rankingDoc, swimmerId, eventName);
+                    totalRetrieved += retrieved;
+                    totalCount += added;
+                    totalExisting += existing;
 
                     // Polite delay between requests
                     await Task.Delay(300);
@@ -418,7 +460,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
             // Return whatever was successfully parsed
         }
 
-        return totalCount;
+        return (totalRetrieved, totalCount, totalExisting);
     }
 
     /// <summary>
@@ -481,13 +523,101 @@ public class SwimRankingsImporter : ISwimTrackImporter
     }
 
     /// <summary>
+    /// Attempts to find the athlete detail URL using both the AJAX search endpoint and the HTML search page.
+    /// </summary>
+    private async Task<string?> FindAthleteDetailUrlAsync(string firstName, string lastName)
+    {
+        try
+        {
+            // 1) Try AJAX search used by SwimRankings internal requests
+            var internalSearchUrl = $"https://www.swimrankings.net/index.php?internalRequest=athleteFind&athlete_firstname={Uri.EscapeDataString(firstName)}&athlete_lastname={Uri.EscapeDataString(lastName)}&athlete_clubId=-1&athlete_gender=-1";
+            try
+            {
+                var searchHtml = await FetchWithRetry(internalSearchUrl);
+                if (!string.IsNullOrWhiteSpace(searchHtml))
+                {
+                    var searchDoc = new HtmlDocument();
+                    searchDoc.LoadHtml(searchHtml);
+                    var athleteDetailLinks = searchDoc.DocumentNode.SelectNodes("//a[contains(@href, 'athleteDetail')]");
+                    if (athleteDetailLinks != null && athleteDetailLinks.Count > 0)
+                    {
+                        var detailUrl = athleteDetailLinks[0].GetAttributeValue("href", "");
+                        detailUrl = System.Net.WebUtility.HtmlDecode(detailUrl);
+                        if (!string.IsNullOrEmpty(detailUrl))
+                        {
+                            if (!detailUrl.StartsWith("http"))
+                                detailUrl = "https://www.swimrankings.net/index.php" + (detailUrl.StartsWith("?") ? detailUrl : "?" + detailUrl);
+                            return detailUrl;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] AJAX search failed: {ex.Message}");
+            }
+
+            // 2) Fallback: Use athleteSelect HTML search page with query params
+            var htmlSearchUrl = $"https://www.swimrankings.net/index.php?page=athleteSelect&nationId=0&selectPage=SEARCH&athlete_firstname={Uri.EscapeDataString(firstName)}&athlete_lastname={Uri.EscapeDataString(lastName)}";
+            try
+            {
+                var pageHtml = await FetchWithRetry(htmlSearchUrl);
+                if (!string.IsNullOrWhiteSpace(pageHtml))
+                {
+                    var pageDoc = new HtmlDocument();
+                    pageDoc.LoadHtml(pageHtml);
+                    // Look for links in results table
+                    var links = pageDoc.DocumentNode.SelectNodes("//a[contains(@href, 'athleteDetail')]");
+                    if (links == null || links.Count == 0)
+                    {
+                        // broader search
+                        links = pageDoc.DocumentNode.SelectNodes("//a[@href]");
+                    }
+
+                    if (links != null && links.Count > 0)
+                    {
+                        // Prefer exact name match if possible
+                        var exact = links.FirstOrDefault(a => string.Equals(a.InnerText.Trim(), $"{firstName} {lastName}", StringComparison.OrdinalIgnoreCase));
+                        var chosen = exact ?? links.FirstOrDefault(l => l.GetAttributeValue("href", "").Contains("athleteDetail"));
+                        if (chosen != null)
+                        {
+                            var url = chosen.GetAttributeValue("href", "");
+                            url = System.Net.WebUtility.HtmlDecode(url);
+                            if (!string.IsNullOrEmpty(url))
+                            {
+                                if (!url.StartsWith("http"))
+                                    url = "https://www.swimrankings.net/index.php" + (url.StartsWith("?") ? url : "?" + url);
+                                return url;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] HTML search failed: {ex.Message}");
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] FindAthleteDetailUrlAsync error: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Parses personal best records from the athlete detail page.
     /// SwimRankings displays personal bests in a table with class "athleteBest" (when no styleId),
     /// or personal rankings (history) in a table with class "athleteRanking" (when styleId is set).
+    /// Returns: (retrieved, new, existing)
     /// </summary>
-    private async Task<int> ParsePersonalRankingsDropdown(HtmlDocument doc, int swimmerId, string overrideEventName = "")
+    private async Task<(int retrieved, int newCount, int existing)> ParsePersonalRankingsDropdown(HtmlDocument doc, int swimmerId, string overrideEventName = "")
     {
         int count = 0;
+        int totalRetrieved = 0;
+        int totalExisting = 0;
 
         try
         {
@@ -708,31 +838,73 @@ public class SwimRankingsImporter : ISwimTrackImporter
                         }
                     }
 
-                    // Batch save results
+                    // Batch save results with upsert/enrichment logic
                     if (resultsToAdd.Any())
                     {
                         var existingResults = await _db.Results
                             .Where(r => r.SwimmerId == swimmerId)
                             .ToListAsync();
 
+                        var addedCount = 0;
+                        var existingCount = 0;
+                        var updatedAny = false;
+
                         foreach (var newResult in resultsToAdd)
                         {
-                            var exists = existingResults.Any(r =>
+                            // Match on swimmer + event + exact date; prefer SwimRankings data to enrich
+                            var existing = existingResults.FirstOrDefault(r =>
                                 r.EventId == newResult.EventId &&
-                                r.Date == newResult.Date &&
-                                Math.Abs(r.TimeSeconds - newResult.TimeSeconds) < 0.01);
+                                r.Date == newResult.Date);
 
-                            if (!exists)
+                            if (existing == null)
                             {
                                 _db.Results.Add(newResult);
-                                count++;
+                                addedCount++;
+                            }
+                            else
+                            {
+                                existingCount++;
+                                // Enrich/correct existing record using SwimRankings
+                                bool changed = false;
+
+                                // Update time if different by a small threshold (SwimRankings authoritative)
+                                if (Math.Abs(existing.TimeSeconds - newResult.TimeSeconds) > 0.001)
+                                {
+                                    existing.TimeSeconds = newResult.TimeSeconds;
+                                    changed = true;
+                                }
+
+                                // Update course if different (should match rowCourse, but correct if needed)
+                                if (existing.Course != newResult.Course)
+                                {
+                                    existing.Course = newResult.Course;
+                                    changed = true;
+                                }
+
+                                // Enrich location if SwimRankings provides it
+                                if (!string.IsNullOrWhiteSpace(newResult.Location))
+                                {
+                                    if (string.IsNullOrWhiteSpace(existing.Location) || !string.Equals(existing.Location, newResult.Location, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        existing.Location = newResult.Location;
+                                        changed = true;
+                                    }
+                                }
+
+                                if (changed)
+                                {
+                                    updatedAny = true;
+                                }
                             }
                         }
 
-                        if (count > 0)
+                        if (addedCount > 0 || updatedAny)
                         {
                             await _db.SaveChangesAsync();
+                            count += addedCount;
+                            totalExisting += existingCount;
                         }
+                        totalRetrieved += resultsToAdd.Count;
                     }
                 }
             }
@@ -742,7 +914,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
             // Return whatever was successfully parsed
         }
 
-        return count;
+        return (totalRetrieved, count, totalExisting);
     }
 
     /// <summary>
