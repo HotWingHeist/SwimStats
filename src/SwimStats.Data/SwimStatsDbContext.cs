@@ -17,7 +17,7 @@ public class SwimStatsDbContext : DbContext
 
         // Add indexes for performance optimization
         modelBuilder.Entity<Swimmer>()
-            .HasIndex(s => s.Name);
+            .HasIndex(s => new { s.FirstName, s.LastName });
 
         modelBuilder.Entity<Event>()
             .HasIndex(e => new { e.Stroke, e.DistanceMeters, e.Course });
@@ -36,17 +36,6 @@ public class SwimStatsDbContext : DbContext
     {
         try
         {
-            // If we have swimmers with empty names, delete them and reseed
-            var emptyNameSwimmers = Swimmers.Where(s => string.IsNullOrWhiteSpace(s.Name)).ToList();
-            if (emptyNameSwimmers.Any())
-            {
-                foreach (var swimmer in emptyNameSwimmers)
-                {
-                    Swimmers.Remove(swimmer);
-                }
-                SaveChanges();
-            }
-
             // Check if swimmers are already seeded with names
             var namedSwimmers = Swimmers.Where(s => !string.IsNullOrWhiteSpace(s.FirstName)).ToList();
             if (namedSwimmers.Any())

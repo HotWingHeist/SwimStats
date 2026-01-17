@@ -29,18 +29,19 @@ public class SwimTrackImporter : ISwimTrackImporter
         _httpClient.DefaultRequestHeaders.Add("DNT", "1");
         _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
         _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
-        _httpClient.Timeout = TimeSpan.FromSeconds(60);
+        _httpClient.Timeout = TimeSpan.FromSeconds(30); // Reduced from 60 to 30 seconds
         _progressCallback = progressCallback;
     }
 
     /// <summary>
-    /// Checks if the SwimTrack website is reachable
+    /// Checks if the SwimTrack website is reachable with a fast timeout
     /// </summary>
     public async Task<bool> IsWebsiteReachableAsync()
     {
         try
         {
-            var response = await _httpClient.GetAsync("https://www.swimtrack.nl", HttpCompletionOption.ResponseHeadersRead);
+            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10)); // Fast 10-second timeout for connectivity check
+            var response = await _httpClient.GetAsync("https://www.swimtrack.nl", HttpCompletionOption.ResponseHeadersRead, cts.Token);
             return response.IsSuccessStatusCode;
         }
         catch (HttpRequestException)
@@ -48,6 +49,10 @@ public class SwimTrackImporter : ISwimTrackImporter
             return false;
         }
         catch (TaskCanceledException)
+        {
+            return false;
+        }
+        catch (OperationCanceledException)
         {
             return false;
         }

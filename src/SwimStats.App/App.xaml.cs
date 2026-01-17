@@ -65,12 +65,14 @@ public partial class App : Application
 			Services = services.BuildServiceProvider();
 			Log("Services configured");
 
-			// Ensure database is created and seeded
+			// Ensure database is created and migrated
 			using (var scope = Services.CreateScope())
 			{
 				var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
-				db.Database.EnsureCreated();
-				Log("Database ensured");
+				
+				// Use Migrate() instead of EnsureCreated() to apply migrations properly
+				db.Database.Migrate();
+				Log("Database migrated");
 				
 				// Seed swimmers from configuration file
 				try
@@ -86,7 +88,8 @@ public partial class App : Application
 				// Add performance indexes if they don't exist
 				try
 				{
-					db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_Swimmers_Name"" ON ""Swimmers"" (""Name"");");
+					// Update swimmer index to use FirstName + LastName
+					db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_Swimmers_FirstName_LastName"" ON ""Swimmers"" (""FirstName"", ""LastName"");");
 					db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_Events_Stroke_DistanceMeters"" ON ""Events"" (""Stroke"", ""DistanceMeters"");");
 					db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_Results_SwimmerId_EventId_Date"" ON ""Results"" (""SwimmerId"", ""EventId"", ""Date"");");
 					db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_Results_Date"" ON ""Results"" (""Date"");");

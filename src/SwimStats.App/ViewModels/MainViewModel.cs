@@ -11,6 +11,7 @@ using SwimStats.Core.Models;
 using SwimStats.Data;
 using SwimStats.Data.Services;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
@@ -130,6 +131,14 @@ public partial class MainViewModel : ObservableObject
 
             using var scope = App.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
+            
+            // Debug: Check database state at startup
+            var dbConnection = db.Database.GetDbConnection();
+            var dbFilePath = dbConnection.DataSource;
+            var resultCount = db.Results.Count();
+            var swimmerCount = db.Swimmers.Count();
+            System.Diagnostics.Debug.WriteLine($"[Startup] Database: {dbFilePath}");
+            System.Diagnostics.Debug.WriteLine($"[Startup] Database has {resultCount} results, {swimmerCount} swimmers");
             
             // Load distances from database
             var uniqueDistances = db.Events
@@ -474,6 +483,13 @@ public partial class MainViewModel : ObservableObject
             IsImporting = false;
             ImportProgress = 100;
             ImportStatus = "";
+            
+            // Debug: Check what was actually saved
+            var dbConnection = db.Database.GetDbConnection();
+            var dbFilePath = dbConnection.DataSource;
+            var finalResultCount = await db.Results.CountAsync();
+            System.Diagnostics.Debug.WriteLine($"[ImportDataAsync] Saved to: {dbFilePath}");
+            System.Diagnostics.Debug.WriteLine($"[ImportDataAsync] After import, database has {finalResultCount} results");
 
             string message = failureCount == 0 
                 ? $"Import from {sourceLabel} complete! Added {totalResultsImported} results for {successCount} swimmers."
