@@ -27,8 +27,8 @@ public class ResultServiceTests : IDisposable
 
     private void SeedTestData()
     {
-        var swimmer1 = new Swimmer { Id = 1, Name = "Test Swimmer 1" };
-        var swimmer2 = new Swimmer { Id = 2, Name = "Test Swimmer 2" };
+        var swimmer1 = new Swimmer { Id = 1, FirstName = "Test", LastName = "Swimmer 1" };
+        var swimmer2 = new Swimmer { Id = 2, FirstName = "Test", LastName = "Swimmer 2" };
         _db.Swimmers.AddRange(swimmer1, swimmer2);
 
         var event50Free = new Event { Id = 1, Stroke = Stroke.Freestyle, DistanceMeters = 50 };

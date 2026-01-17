@@ -23,12 +23,12 @@ public class DatabaseTests : IDisposable
     [Fact]
     public void CanCreateSwimmer()
     {
-        var swimmer = new Swimmer { Name = "John Doe" };
+        var swimmer = new Swimmer { FirstName = "John", LastName = "Doe" };
         _db.Swimmers.Add(swimmer);
         _db.SaveChanges();
 
         var retrieved = _db.Swimmers.First();
-        Assert.Equal("John Doe", retrieved.Name);
+        Assert.Equal("John Doe", retrieved.DisplayName);
         Assert.True(retrieved.Id > 0);
     }
 
@@ -47,7 +47,7 @@ public class DatabaseTests : IDisposable
     [Fact]
     public void CanCreateResultWithRelationships()
     {
-        var swimmer = new Swimmer { Name = "Jane Smith" };
+        var swimmer = new Swimmer { FirstName = "Jane", LastName = "Smith" };
         var evt = new Event { Stroke = Stroke.Backstroke, DistanceMeters = 50 };
         _db.Swimmers.Add(swimmer);
         _db.Events.Add(evt);
@@ -68,7 +68,7 @@ public class DatabaseTests : IDisposable
             .Include(r => r.Event)
             .First();
 
-        Assert.Equal("Jane Smith", retrieved.Swimmer.Name);
+        Assert.Equal("Jane Smith", retrieved.Swimmer.DisplayName);
         Assert.Equal(Stroke.Backstroke, retrieved.Event.Stroke);
         Assert.Equal(50, retrieved.Event.DistanceMeters);
         Assert.Equal(32.5, retrieved.TimeSeconds, 1);
@@ -77,7 +77,7 @@ public class DatabaseTests : IDisposable
     [Fact]
     public void SwimmerCanHaveMultipleResults()
     {
-        var swimmer = new Swimmer { Name = "Multi Swimmer" };
+        var swimmer = new Swimmer { FirstName = "Multi", LastName = "Swimmer" };
         var event50 = new Event { Stroke = Stroke.Freestyle, DistanceMeters = 50 };
         var event100 = new Event { Stroke = Stroke.Freestyle, DistanceMeters = 100 };
         _db.Swimmers.Add(swimmer);
@@ -97,8 +97,8 @@ public class DatabaseTests : IDisposable
     [Fact]
     public void EventCanHaveMultipleResults()
     {
-        var swimmer1 = new Swimmer { Name = "Swimmer 1" };
-        var swimmer2 = new Swimmer { Name = "Swimmer 2" };
+        var swimmer1 = new Swimmer { FirstName = "Swimmer", LastName = "1" };
+        var swimmer2 = new Swimmer { FirstName = "Swimmer", LastName = "2" };
         var evt = new Event { Stroke = Stroke.Butterfly, DistanceMeters = 100 };
         _db.Swimmers.AddRange(swimmer1, swimmer2);
         _db.Events.Add(evt);
@@ -117,7 +117,7 @@ public class DatabaseTests : IDisposable
     [Fact]
     public void CanQueryResultsByDateRange()
     {
-        var swimmer = new Swimmer { Name = "Test" };
+        var swimmer = new Swimmer { FirstName = "Test", LastName = "" };
         var evt = new Event { Stroke = Stroke.Freestyle, DistanceMeters = 50 };
         _db.Swimmers.Add(swimmer);
         _db.Events.Add(evt);
