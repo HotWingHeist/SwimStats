@@ -52,6 +52,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool isImporting;
     
+    private CancellationTokenSource? _importCancellationTokenSource;
+    
     [ObservableProperty]
     private PersonalRecordViewModel? selectedPersonalRecord;
     
@@ -336,11 +338,13 @@ public partial class MainViewModel : ObservableObject
     {
         if (App.Services == null) return;
         
+        _importCancellationTokenSource = new CancellationTokenSource();
+        
         using var scope = App.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
         
         // Run import on background thread to prevent UI blocking
-        await Task.Run(() => ImportDataAsync(new SwimRankingsImporter(db, GetProgressCallback()), "SwimRankings"));
+        await Task.Run(() => ImportDataAsync(new SwimRankingsImporter(db, GetProgressCallback()), "SwimRankings", _importCancellationTokenSource.Token));
     }
 
     [RelayCommand]
@@ -348,11 +352,13 @@ public partial class MainViewModel : ObservableObject
     {
         if (App.Services == null) return;
         
+        _importCancellationTokenSource = new CancellationTokenSource();
+        
         using var scope = App.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
         
         // Run import on background thread to prevent UI blocking
-        await Task.Run(() => ImportDataAsync(new SwimTrackImporter(db, GetProgressCallback()), "SwimTrack"));
+        await Task.Run(() => ImportDataAsync(new SwimTrackImporter(db, GetProgressCallback()), "SwimTrack", _importCancellationTokenSource.Token));
     }
 
     private Action<int, int, string> GetProgressCallback()
@@ -367,7 +373,24 @@ public partial class MainViewModel : ObservableObject
         };
     }
 
-    private async Task ImportDataAsync(ISwimTrackImporter importer, string sourceLabel)
+    [RelayCommand]
+    private void CancelImport()
+    {
+        if (_importCancellationTokenSource != null && !_importCancellationTokenSource.Token.IsCancellationRequested)
+        {
+            _importCancellationTokenSource.Cancel();
+            IsImporting = false;
+            ImportProgress = 0;
+            ImportStatus = "Import cancelled";
+            
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                MessageBox.Show("Data import has been cancelled.", "Import Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
+            });
+        }
+    }
+
+    private async Task ImportDataAsync(ISwimTrackImporter importer, string sourceLabel, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -427,6 +450,15 @@ public partial class MainViewModel : ObservableObject
             // Import data for each swimmer
             for (int i = 0; i < allSwimmers.Count; i++)
             {
+                // Check if cancellation was requested
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    IsImporting = false;
+                    ImportProgress = 0;
+                    ImportStatus = "Import cancelled by user";
+                    return;
+                }
+                
                 var swimmer = allSwimmers[i];
                 ImportStatus = $"Importing from {sourceLabel} for {swimmer.DisplayName} ({i + 1}/{allSwimmers.Count})...";
                 ImportProgress = (int)((i / (double)allSwimmers.Count) * 100);
