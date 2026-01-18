@@ -316,10 +316,9 @@ public partial class MainViewModel : ObservableObject
             using var scope = App.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
             
-            // Delete all data
+            // Delete swim data (Results and Events) but keep Swimmers
             await db.Database.ExecuteSqlRawAsync("DELETE FROM Results");
             await db.Database.ExecuteSqlRawAsync("DELETE FROM Events");
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM Swimmers");
             
             MessageBox.Show(loc["ClearDataCompleteMessage"], loc["ClearDataCompleteTitle"], MessageBoxButton.OK, MessageBoxImage.Information);
 
@@ -1011,6 +1010,9 @@ public partial class MainViewModel : ObservableObject
                             var courseResults = await resultService.GetResultsAsync(swimmer.Id, SelectedStroke.Stroke, SelectedDistance, course);
                             combinedResults.AddRange(courseResults);
                         }
+                        
+                        // Sort combined results by date to ensure proper line plotting
+                        combinedResults = combinedResults.OrderBy(r => r.Date).ToList();
                         
                         if (combinedResults.Any())
                         {

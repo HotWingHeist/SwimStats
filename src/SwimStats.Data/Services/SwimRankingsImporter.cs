@@ -22,9 +22,12 @@ public class SwimRankingsImporter : ISwimTrackImporter
     private readonly Action<int, int, string>? _progressCallback;
     
     // Request throttling to avoid rate limiting
-    private readonly System.Threading.SemaphoreSlim _requestThrottle = new System.Threading.SemaphoreSlim(1, 1);
+    // Allow up to 2 concurrent requests to improve performance while respecting rate limits
+    private readonly System.Threading.SemaphoreSlim _requestThrottle = new System.Threading.SemaphoreSlim(2, 2);
     private DateTime _lastRequestTime = DateTime.MinValue;
-    private const int MIN_REQUEST_DELAY_MS = 2500; // 2.5 seconds between requests (safe balance)
+    private const int MIN_REQUEST_DELAY_MS = 3500; // 3.5 seconds between requests (optimized with parallelism)
+    private const int MIN_DELAY_AFTER_ERROR_MS = 15000; // 15 seconds after any error
+    private bool _recentError = false;
 
     public SwimRankingsImporter(SwimStatsDbContext db, Action<int, int, string>? progressCallback = null)
     {
@@ -367,11 +370,11 @@ public class SwimRankingsImporter : ISwimTrackImporter
             // Get all swimmers from database
             var swimmers = await _db.Swimmers.ToListAsync();
             int processedCount = 0;
+            int totalSwimmers = swimmers.Count;
 
             foreach (var swimmer in swimmers)
             {
-                processedCount++;
-                _progressCallback?.Invoke(processedCount, swimmers.Count, $"Processing {swimmer.DisplayName} ({processedCount}/{swimmers.Count})...");
+                _progressCallback?.Invoke(processedCount, totalSwimmers, $"Searching for {swimmer.DisplayName} ({processedCount + 1}/{totalSwimmers})...");
 
                 try
                 {
@@ -391,11 +394,13 @@ public class SwimRankingsImporter : ISwimTrackImporter
                     catch
                     {
                         // If internal search fails, skip this swimmer
+                        processedCount++;
                         continue;
                     }
 
                     if (string.IsNullOrWhiteSpace(searchHtml))
                     {
+                        processedCount++;
                         continue;
                     }
 
@@ -440,10 +445,14 @@ public class SwimRankingsImporter : ISwimTrackImporter
                                         detailUrl = "https://www.swimrankings.net/index.php" + (detailUrl.StartsWith("?") ? detailUrl : "?" + detailUrl);
                                     }
 
+                                    _progressCallback?.Invoke(processedCount, totalSwimmers, $"Fetching results for {swimmer.DisplayName} ({processedCount + 1}/{totalSwimmers})...");
+
                                     // Fetch the athlete detail page
                                     var detailHtml = await FetchWithRetry(detailUrl);
                                 var detailDoc = new HtmlDocument();
                                 detailDoc.LoadHtml(detailHtml);
+
+                                _progressCallback?.Invoke(processedCount, totalSwimmers, $"Parsing results for {swimmer.DisplayName} ({processedCount + 1}/{totalSwimmers})...");
 
                                 // Extract athlete ID from URL if possible
                                 var athleteIdMatch = Regex.Match(detailUrl, @"athleteId=(\d+)");
@@ -460,12 +469,15 @@ public class SwimRankingsImporter : ISwimTrackImporter
                         }
                     }
 
+                    processedCount++;
+
                     // Polite delay between requests
                     await Task.Delay(500);
                 }
                 catch
                 {
                     // Continue with next swimmer if this one fails
+                    processedCount++;
                     continue;
                 }
             }
@@ -1129,12 +1141,20 @@ public class SwimRankingsImporter : ISwimTrackImporter
     /// <summary>
     /// Fetches a URL with retry logic to handle temporary server issues
     /// </summary>
-    private async Task<string> FetchWithRetry(string url, int maxRetries = 3)
+    private async Task<string> FetchWithRetry(string url, int maxRetries = 2)
     {
         // Throttle requests to avoid rate limiting
         await _requestThrottle.WaitAsync();
         try
         {
+            // If we had a recent error, wait longer
+            if (_recentError)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Recent error detected, waiting {MIN_DELAY_AFTER_ERROR_MS}ms before attempting request");
+                await Task.Delay(MIN_DELAY_AFTER_ERROR_MS);
+                _recentError = false;
+            }
+            
             // Calculate delay since last request
             var timeSinceLastRequest = DateTime.UtcNow - _lastRequestTime;
             var delayNeeded = MIN_REQUEST_DELAY_MS - (int)timeSinceLastRequest.TotalMilliseconds;
@@ -1159,7 +1179,9 @@ public class SwimRankingsImporter : ISwimTrackImporter
                     // Handle rate limiting (429) and service unavailable (503)
                     if ((int)response.StatusCode == 429 || (int)response.StatusCode == 503)
                     {
-                        var backoffDelay = Math.Min(1000 * (int)Math.Pow(2, attempt), 10000); // exponential backoff, max 10s
+                        _recentError = true;
+                        // Use much longer backoff for rate limiting
+                        var backoffDelay = attempt == 0 ? 20000 : 45000; // 20s first, 45s second
                         System.Diagnostics.Debug.WriteLine($"[SwimRankings] Rate limited (status {response.StatusCode}), backing off {backoffDelay}ms");
                         await Task.Delay(backoffDelay);
                         continue;
@@ -1172,13 +1194,16 @@ public class SwimRankingsImporter : ISwimTrackImporter
                 }
                 catch (HttpRequestException ex) when (attempt < maxRetries - 1)
                 {
+                    _recentError = true;
                     System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed (attempt {attempt + 1}): {ex.Message}");
-                    // Wait longer on each retry
-                    await Task.Delay(1000 * (attempt + 1));
+                    // Wait longer on each retry - much more conservative
+                    var retryDelay = 15000 * (attempt + 1); // 15s, 30s
+                    await Task.Delay(retryDelay);
                     continue;
                 }
                 catch (HttpRequestException ex)
                 {
+                    _recentError = true;
                     System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed after {maxRetries} attempts: {ex.Message}");
                     throw;
                 }

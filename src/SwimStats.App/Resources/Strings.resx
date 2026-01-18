@@ -74,7 +74,7 @@
     <value>Import from SwimTrack</value>
   </data>
   <data name="ClearDataButton" xml:space="preserve">
-    <value>Clear All Data</value>
+    <value>Clear Swim Data</value>
   </data>
   <data name="ChartTitle" xml:space="preserve">
     <value>Performance over time</value>
@@ -107,13 +107,13 @@
     <value>Confirm Clear Data</value>
   </data>
   <data name="ClearDataConfirmMessage" xml:space="preserve">
-    <value>Are you sure you want to clear ALL data from the database?\n\nThis will delete all swimmers, events, and results. This action cannot be undone!</value>
+    <value>Are you sure you want to clear swim data from the database?\n\nThis will delete all events and results, but will keep swimmers. This action cannot be undone!</value>
   </data>
   <data name="ClearDataCompleteTitle" xml:space="preserve">
     <value>Data Cleared</value>
   </data>
   <data name="ClearDataCompleteMessage" xml:space="preserve">
-    <value>All data has been cleared successfully.</value>
+    <value>Swim data has been cleared successfully. Swimmers have been preserved.</value>
   </data>
   <data name="ClearDataErrorMessage" xml:space="preserve">
     <value>Failed to clear data: {0}</value>

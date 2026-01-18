@@ -2,7 +2,7 @@
 
 **For:** EZPC Swimming Club  
 **Status:** ✅ Stable (Ready for Use)  
-**Latest Version:** v1.3 (January 18, 2026)
+**Latest Version:** v1.4 (January 18, 2026)
 
 ---
 
@@ -369,7 +369,17 @@ Database updated → UI refreshed with new swimmer list
 
 ---
 
-## 📄 License & Credits
+## 📝 Changelog
+
+### v1.4 (January 18, 2026)
+**Performance & Reliability Improvements:**
+- ✅ **Chart plotting fixed** - Data from multiple pools (50m/25m) now displays correctly from left to right
+- ✅ **Progress tracking improved** - SwimRankings import now shows accurate progress across all swimmers
+- ✅ **Import performance optimized** - 2 concurrent requests (vs sequential) = ~2x faster imports
+- ✅ **Rate limiting enhanced** - Respectful backoff strategy (3.5-4s delays, proper error handling)
+- ✅ **UI improved** - "Clear All Data" renamed to "Clear Swim Data" (preserves swimmers, only clears results/events)
+
+---
 
 **Project:** SwimStats  
 **For:** EZPC Swimming Club  

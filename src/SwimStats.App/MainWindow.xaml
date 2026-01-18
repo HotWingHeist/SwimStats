@@ -102,22 +102,19 @@
                           Style="{StaticResource ModernComboBox}"
                           ItemsSource="{Binding Strokes}" 
                           SelectedItem="{Binding SelectedStroke}"
-                          DisplayMemberPath="DisplayName"
-                          IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"/>
+                          DisplayMemberPath="DisplayName"/>
                 
                 <TextBlock Grid.Column="3" VerticalAlignment="Center" FontWeight="SemiBold" Text="{res:Localize Distance}" Foreground="#FF333333"/>
                 <ComboBox Grid.Column="4" VerticalAlignment="Center" 
                           Style="{StaticResource ModernComboBox}"
                           ItemsSource="{Binding Distances}" 
-                          SelectedItem="{Binding SelectedDistance}"
-                          IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"/>
+                          SelectedItem="{Binding SelectedDistance}"/>
                 
                 <TextBlock Grid.Column="6" VerticalAlignment="Center" FontWeight="SemiBold" Text="Course" Foreground="#FF333333"/>
                 <controls:CheckboxComboBox Grid.Column="7" VerticalAlignment="Center" 
                           Panel.ZIndex="1000"
                           Style="{StaticResource ModernComboBox}"
-                          ItemsSource="{Binding SelectableCourses}"
-                          IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}">
+                          ItemsSource="{Binding SelectableCourses}">
                     <controls:CheckboxComboBox.ItemTemplate>
                         <DataTemplate>
                             <CheckBox Content="{Binding Name}" 
@@ -132,7 +129,6 @@
                 <controls:CheckboxComboBox Grid.Column="10" VerticalAlignment="Center"
                           Style="{StaticResource ModernComboBox}"
                           ItemsSource="{Binding SelectableSwimmers}"
-                          IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
                           MaxDisplayLength="40">
                     <controls:CheckboxComboBox.ItemTemplate>
                         <DataTemplate>
