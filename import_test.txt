@@ -1,0 +1,28 @@
+=== SwimRankings Importer Test ===
+Testing with swimmer: Zhifeng Sheng
+
+Deleted old test database: C:\Users\zhife\AppData\Local\SwimStats_Test\swimstats_test.db
+
+✓ Database created at: C:\Users\zhife\AppData\Local\SwimStats_Test\swimstats_test.db
+
+--- Step 1: Adding Test Athletes ---
+Note: Search pages are AJAX-based. Adding test swimmers directly for testing.
+
+Swimmers in database:
+  - ID: 1, Name: Zhifeng Sheng
+
+--- Step 2: Importing Results ---
+Searching for swimming results via SwimRankings...
+
+  Progress: [1/1] Processing Zhifeng Sheng (1/1)...
+
+✓ Results imported: 0
+
+Results in database: 0
+
+=== Import Summary ===
+Total Swimmers: 1
+Total Results: 0
+Events: 0
+
+✓ Test completed successfully!

@@ -60,7 +60,7 @@ class Program
                 Console.WriteLine("--- Step 1: Adding Test Athletes ---");
                 Console.WriteLine("Note: Search pages are AJAX-based. Adding test swimmers directly for testing.\n");
                 
-                var swimmer1 = new SwimStats.Core.Models.Swimmer { Name = "Zhifeng Sheng" };
+                var swimmer1 = new SwimStats.Core.Models.Swimmer { FirstName = "Zhifeng", LastName = "Sheng" };
                 db.Swimmers.Add(swimmer1);
                 await db.SaveChangesAsync();
                 
@@ -68,7 +68,7 @@ class Program
                 Console.WriteLine("Swimmers in database:");
                 foreach (var s in swimmers)
                 {
-                    Console.WriteLine($"  - ID: {s.Id}, Name: {s.Name}");
+                    Console.WriteLine($"  - ID: {s.Id}, Name: {s.FirstName} {s.LastName}");
                 }
                 Console.WriteLine();
 
@@ -88,7 +88,8 @@ class Program
                 foreach (var result in results.Take(10))
                 {
                     var timeFormatted = FormatTime(result.TimeSeconds);
-                    Console.WriteLine($"  - {result.Swimmer.Name}: {result.Event.Stroke} {result.Event.DistanceMeters}m = {timeFormatted} ({result.Date:yyyy-MM-dd})");
+                    var swimmerName = $"{result.Swimmer?.FirstName} {result.Swimmer?.LastName}".Trim();
+                    Console.WriteLine($"  - {swimmerName}: {result.Event?.Stroke} {result.Event?.DistanceMeters}m = {timeFormatted} ({result.Date:yyyy-MM-dd})");
                 }
                 if (results.Count > 10)
                 {

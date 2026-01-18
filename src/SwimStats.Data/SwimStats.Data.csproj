@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="swimmers.json">
+    <None Update="EZPCswimmers.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

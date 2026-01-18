@@ -41,7 +41,7 @@ public class SwimTrackImporter : ISwimTrackImporter
     public async Task<bool> IsWebsiteReachableAsync()
     {
         var host = "www.swimtrack.nl";
-        var baseUrl = "https://www.swimtrack.nl";
+        var baseUrl = "https://www.swimtrack.nl/ez-pc/perstijden.php";
 
         // 1) DNS resolution check (quick)
         try
@@ -379,10 +379,12 @@ public class SwimTrackImporter : ISwimTrackImporter
                 
                 foreach (var newResult in resultsToAdd)
                 {
+                    // Match on swimmer + event + date + time
+                    // Time is unique enough to distinguish multiple results on same day (heats, semis, finals all have different times)
                     var exists = existingResults.Any(r =>
                         r.EventId == newResult.EventId &&
                         r.Date == newResult.Date &&
-                        Math.Abs(r.TimeSeconds - newResult.TimeSeconds) < 0.01);
+                        r.TimeSeconds == newResult.TimeSeconds);  // Match exact time only
                     
                     if (!exists)
                     {

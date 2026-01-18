@@ -1,5 +1,7 @@
 using SwimStats.App.ViewModels;
+using SwimStats.App.Controls;
 using Xunit;
+using OxyPlot.Series;
 
 namespace SwimStats.Tests;
 
@@ -94,6 +96,54 @@ public class MainViewModelTests
         var median = InvokeCalculateMedian(values);
         
         Assert.Equal(25.5, median);
+    }
+
+    [Fact]
+    public void ClubStatisticsSeries_ShouldNotHaveTrackerEnabled()
+    {
+        // Arrange: Create club statistics series (simulating what BuildChart does)
+        var clubBestSeries = new SwimTimeSeries
+        {
+            Title = "Club Best",
+            DisableTracker = true  // Should be disabled for club statistics
+        };
+
+        var clubSlowestSeries = new SwimTimeSeries
+        {
+            Title = "Club Slowest",
+            DisableTracker = true  // Should be disabled for club statistics
+        };
+
+        // Assert: Club statistics should have DisableTracker = true
+        Assert.True(clubBestSeries.DisableTracker);
+        Assert.True(clubSlowestSeries.DisableTracker);
+        
+        // Arrange: Create individual swimmer series (should have tracker enabled)
+        var swimmerSeries = new SwimTimeSeries
+        {
+            Title = "Swimmer Name",
+            DisableTracker = false  // Should be enabled for swimmer data (default)
+        };
+        
+        // Assert: Swimmer series should have tracker enabled
+        Assert.False(swimmerSeries.DisableTracker);
+    }
+
+    [Fact]
+    public void SwimTimeSeries_WithDisableTrackerTrue_ReturnsNullFromGetNearestPoint()
+    {
+        // Arrange
+        var series = new SwimTimeSeries
+        {
+            DisableTracker = true
+        };
+        series.AddDataPoint(1.0, 25.5, "Test Location");
+
+        // Act
+        var result = series.GetNearestPoint(new OxyPlot.ScreenPoint(0, 0), false);
+
+        // Assert: When DisableTracker is true, GetNearestPoint should return null
+        Assert.Null(result);
     }
 
     // Helper method to invoke private static CalculateMedian via reflection

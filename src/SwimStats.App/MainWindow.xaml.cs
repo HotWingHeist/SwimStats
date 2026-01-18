@@ -212,4 +212,12 @@ public partial class MainWindow : Window
             viewModel.RefreshChart();
         }
     }
+
+    private void ReloadConfiguration_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainViewModel viewModel)
+        {
+            viewModel.ReloadConfigurationCommand.Execute(null);
+        }
+    }
 }

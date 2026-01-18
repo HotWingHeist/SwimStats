@@ -480,6 +480,7 @@ public partial class MainViewModel : ObservableObject
                     // Skip if import fails for this swimmer and continue with next
                     failureCount++;
                     System.Diagnostics.Debug.WriteLine($"Error importing {swimmer.DisplayName}: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"StackTrace: {ex.StackTrace}");
                     continue;
                 }
             }
@@ -583,6 +584,86 @@ public partial class MainViewModel : ObservableObject
         SaveSelections();
         BuildChart();
         LoadPersonalRecords();
+    }
+
+    [RelayCommand]
+    private void ReloadConfiguration()
+    {
+        try
+        {
+            if (App.Services == null) return;
+
+            using var scope = App.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
+
+            // Create backup before reloading
+            var backupService = new SwimStats.Data.Services.ConfigurationBackupService();
+            var backupPath = backupService.CreateBackup();
+            if (backupPath != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Configuration backup created: {backupPath}");
+            }
+
+            // Reload swimmers from configuration file
+            System.Diagnostics.Debug.WriteLine("[MainViewModel] Reloading configuration from file");
+            
+            // Load fresh swimmers from configuration
+            var freshSwimmers = SwimStats.Data.SwimmerConfigurationLoader.LoadSwimmers();
+            
+            if (freshSwimmers.Count == 0)
+            {
+                System.Windows.MessageBox.Show("No swimmers found in configuration file.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                return;
+            }
+            
+            // Update database with configuration
+            foreach (var configSwimmer in freshSwimmers)
+            {
+                var dbSwimmer = db.Swimmers.FirstOrDefault(s => s.Id == configSwimmer.Id);
+                if (dbSwimmer == null)
+                {
+                    // New swimmer from config
+                    dbSwimmer = new Swimmer
+                    {
+                        Id = configSwimmer.Id,
+                        FirstName = configSwimmer.FirstName ?? "",
+                        LastName = configSwimmer.LastName ?? ""
+                    };
+                    db.Swimmers.Add(dbSwimmer);
+                }
+                else
+                {
+                    // Update existing swimmer
+                    dbSwimmer.FirstName = configSwimmer.FirstName ?? "";
+                    dbSwimmer.LastName = configSwimmer.LastName ?? "";
+                }
+            }
+            db.SaveChanges();
+
+            // Refresh UI
+            SelectableSwimmers.Clear();
+            var swimmers = db.Swimmers.ToList().OrderBy(s => s.DisplayName).ToList();
+            var settings = AppSettings.Instance;
+            
+            foreach (var swimmer in swimmers)
+            {
+                var selectableSwimmer = new SelectableSwimmer(swimmer);
+                selectableSwimmer.IsSelected = settings.SelectedSwimmerIds.Contains(swimmer.Id);
+                SelectableSwimmers.Add(selectableSwimmer);
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[MainViewModel] Configuration reloaded with {swimmers.Count} swimmers");
+            System.Windows.MessageBox.Show($"Configuration reloaded successfully!\nLoaded {swimmers.Count} swimmers.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            
+            // Refresh the display
+            BuildChart();
+            LoadPersonalRecords();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainViewModel] ERROR reloading configuration: {ex.Message}\n{ex.StackTrace}");
+            System.Windows.MessageBox.Show($"Error reloading configuration: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
     }
 
     private async Task RefreshDataAsync()
@@ -835,7 +916,8 @@ public partial class MainViewModel : ObservableObject
                             Color = OxyColor.FromRgb(0, 158, 115),  // Bluish Green (color-blind safe)
                             StrokeThickness = 2.5,
                             LineStyle = LineStyle.Dash,
-                            MarkerType = MarkerType.None
+                            MarkerType = MarkerType.None,
+                            DisableTracker = true  // Disable tooltip for club statistics
                         };
 
                         var cumulativeMax = new SwimTimeSeries
@@ -844,7 +926,8 @@ public partial class MainViewModel : ObservableObject
                             Color = OxyColor.FromRgb(213, 94, 0),   // Vermillion (color-blind safe)
                             StrokeThickness = 2.5,
                             LineStyle = LineStyle.DashDot,
-                            MarkerType = MarkerType.None
+                            MarkerType = MarkerType.None,
+                            DisableTracker = true  // Disable tooltip for club statistics
                         };
 
                         double runningMin = double.MaxValue;

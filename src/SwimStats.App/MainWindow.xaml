@@ -57,6 +57,9 @@
     <DockPanel>
         <!-- Menu Bar -->
         <Menu DockPanel.Dock="Top" Background="White" BorderBrush="#FFE0E0E0" BorderThickness="0,0,0,1">
+            <MenuItem Header="File">
+                <MenuItem Header="Reload Configuration" Click="ReloadConfiguration_Click"/>
+            </MenuItem>
             <MenuItem Header="{res:Localize Help}">
                 <MenuItem Header="{res:Localize About}" Click="About_Click"/>
             </MenuItem>
@@ -195,7 +198,8 @@
                     Style="{StaticResource ModernButton}"
                     Command="{Binding ImportFromSwimRankingsCommand}" 
                     IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
-                    Background="#FF0072B2">
+                    Background="#FF0072B2"
+                    ToolTip="Import from SwimRankings (Recommended for international swimmers)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="📥 " FontSize="16" Margin="0,0,6,0"/>
                         <TextBlock Text="SwimRankings" Foreground="White" FontSize="13"/>
@@ -206,7 +210,8 @@
                     Margin="8,0,0,0"
                     Command="{Binding ImportFromSwimTrackCommand}" 
                     IsEnabled="{Binding IsImporting, Converter={StaticResource InverseBoolConverter}}"
-                    Background="#FF0072B2">
+                    Background="#FF0072B2"
+                    ToolTip="Import from SwimTrack (Alternative source for Dutch swimmers)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="📥 " FontSize="16" Margin="0,0,6,0"/>
                         <TextBlock Text="SwimTrack" Foreground="White" FontSize="13"/>

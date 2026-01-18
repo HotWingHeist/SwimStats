@@ -9,12 +9,16 @@ namespace SwimStats.TestImporter;
 
 public class VerifyDB
 {
-    public static async Task Main()
+    public static async Task VerifyDatabase()
     {
         var appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SwimStats_Test");
         var dbPath = Path.Combine(appDataPath, "swimstats_test.db");
         
-        var db = new SwimStatsDbContext($"Data Source={dbPath}");
+        var options = new DbContextOptionsBuilder<SwimStatsDbContext>()
+            .UseSqlite($"Data Source={dbPath}")
+            .Options;
+        
+        var db = new SwimStatsDbContext(options);
         
         var events = await db.Events.OrderBy(e => e.Stroke).ToListAsync();
         var results = await db.Results.ToListAsync();

@@ -8,6 +8,12 @@ public class SwimTimeSeries : LineSeries
 {
     private readonly List<SwimDataPoint> _dataItems = new();
 
+    /// <summary>
+    /// When true, disables tooltip/tracker for this series.
+    /// Useful for reference lines (e.g., club statistics) that shouldn't interfere with primary data tooltips.
+    /// </summary>
+    public bool DisableTracker { get; set; }
+
     public void AddDataPoint(double x, double y, string? location)
     {
         var dataPoint = new DataPoint(x, y);
@@ -17,6 +23,12 @@ public class SwimTimeSeries : LineSeries
 
     public override TrackerHitResult? GetNearestPoint(ScreenPoint point, bool interpolate)
     {
+        // If tracker is disabled, return null (no tooltip)
+        if (DisableTracker)
+        {
+            return null;
+        }
+
         var result = base.GetNearestPoint(point, interpolate);
         if (result != null)
         {
@@ -25,7 +37,7 @@ public class SwimTimeSeries : LineSeries
             var formattedTime = FormatSwimTime(timeSeconds);
             var date = DateTime.FromOADate(result.DataPoint.X);
             
-            string location = null;
+            string? location = null;
             var matchingItem = _dataItems.FirstOrDefault(i => 
                 Math.Abs(i.X - result.DataPoint.X) < 0.0001 && 
                 Math.Abs(i.Y - result.DataPoint.Y) < 0.0001);

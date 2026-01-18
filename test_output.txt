@@ -1,0 +1,43 @@
+C:\Users\zhife\swimstats\src\SwimStats.Data\Services\SwimTrackImporter.cs(175,91): warning CS0618: 'Swimmer.Name' is obsolete: 'Use FirstName and LastName instead' [C:\Users\zhife\swimstats\src\SwimStats.Data\SwimStats.Data.csproj]
+C:\Users\zhife\swimstats\src\SwimStats.Data\Services\SwimTrackImporter.cs(259,83): warning CS0618: 'Swimmer.Name' is obsolete: 'Use FirstName and LastName instead' [C:\Users\zhife\swimstats\src\SwimStats.Data\SwimStats.Data.csproj]
+C:\Users\zhife\swimstats\src\SwimStats.Data\Services\SwimTrackImporter.cs(535,21): warning CS0618: 'Swimmer.Name' is obsolete: 'Use FirstName and LastName instead' [C:\Users\zhife\swimstats\src\SwimStats.Data\SwimStats.Data.csproj]
+C:\Users\zhife\swimstats\src\SwimStats.Data\Services\SwimTrackImporter.cs(487,39): warning CS8600: Converting null literal or possible null value to non-nullable type. [C:\Users\zhife\swimstats\src\SwimStats.Data\SwimStats.Data.csproj]
+=== SwimRankings Importer Test ===
+Testing with swimmer: Zhifeng Sheng
+
+Deleted old test database: C:\Users\zhife\AppData\Local\SwimStats_Test\swimstats_test.db
+
+✓ Database created at: C:\Users\zhife\AppData\Local\SwimStats_Test\swimstats_test.db
+
+--- Step 1: Adding Test Athletes ---
+Note: Search pages are AJAX-based. Adding test swimmers directly for testing.
+
+Swimmers in database:
+  - ID: 1, Name: Zhifeng Sheng
+
+--- Step 2: Importing Results ---
+Searching for swimming results via SwimRankings...
+
+  Progress: [1/1] Processing Zhifeng Sheng (1/1)...
+
+✓ Results imported: 19
+
+Results in database: 19
+  - Zhifeng Sheng: Freestyle 50m = 37.24 (2025-03-23)
+  - Zhifeng Sheng: Freestyle 50m = 38.23 (2024-02-25)
+  - Zhifeng Sheng: Freestyle 50m = 38.31 (2025-03-09)
+  - Zhifeng Sheng: Freestyle 50m = 38.86 (2023-04-23)
+  - Zhifeng Sheng: Freestyle 50m = 38.97 (2023-11-12)
+  - Zhifeng Sheng: Freestyle 50m = 41.91 (2023-02-12)
+  - Zhifeng Sheng: Freestyle 50m = 43.52 (2022-11-20)
+  - Zhifeng Sheng: Freestyle 50m = 44.29 (2022-12-18)
+  - Zhifeng Sheng: Freestyle 100m = 1:27.87 (2025-12-14)
+  - Zhifeng Sheng: Freestyle 100m = 1:29.80 (2025-02-16)
+  ... and 9 more results
+
+=== Import Summary ===
+Total Swimmers: 1
+Total Results: 19
+Events: 3
+
+✓ Test completed successfully!

@@ -49,7 +49,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
     public async Task<bool> IsWebsiteReachableAsync()
     {
         var host = "www.swimrankings.net";
-        var baseUrl = "https://www.swimrankings.net";
+        var baseUrl = "https://www.swimrankings.net/index.php?page=athleteSelect&nationId=0&selectPage=SEARCH";
 
         // 1) DNS resolution check (quick)
         try
@@ -222,6 +222,8 @@ public class SwimRankingsImporter : ISwimTrackImporter
     {
         try
         {
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] ImportSingleSwimmerAsync called with: {swimmerName}");
+            
             var names = swimmerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (names.Length < 2)
             {
@@ -230,13 +232,61 @@ public class SwimRankingsImporter : ISwimTrackImporter
 
             var firstName = names[0];
             var lastName = string.Join(" ", names.Skip(1));
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Parsed as firstName='{firstName}', lastName='{lastName}'");
 
             _progressCallback?.Invoke(0, 100, $"Searching for {swimmerName}...");
-            // Resolve athlete detail URL via AJAX search first; fallback to HTML search page if needed
-            var detailUrl = await FindAthleteDetailUrlAsync(firstName, lastName);
-            if (string.IsNullOrEmpty(detailUrl))
+            
+            // Use the internal AJAX search endpoint (same as ImportResultsAsync)
+            var internalSearchUrl = $"https://www.swimrankings.net/index.php?internalRequest=athleteFind&athlete_firstname={Uri.EscapeDataString(firstName)}&athlete_lastname={Uri.EscapeDataString(lastName)}&athlete_clubId=-1&athlete_gender=-1";
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Searching URL: {internalSearchUrl}");
+
+            string searchHtml = "";
+            try
+            {
+                searchHtml = await FetchWithRetry(internalSearchUrl);
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Got search response: {searchHtml.Length} bytes");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Search failed: {ex.Message}");
+                throw new Exception($"Failed to search for {swimmerName} on SwimRankings: {ex.Message}", ex);
+            }
+
+            if (string.IsNullOrWhiteSpace(searchHtml))
             {
                 throw new Exception($"No results found for {swimmerName}");
+            }
+
+            var searchDoc = new HtmlDocument();
+            searchDoc.LoadHtml(searchHtml);
+
+            // Find athlete detail links
+            var athleteDetailLinks = searchDoc.DocumentNode.SelectNodes("//a[contains(@href, 'athleteDetail')]");
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found {athleteDetailLinks?.Count ?? 0} athlete detail links");
+            
+            if (athleteDetailLinks == null || athleteDetailLinks.Count == 0)
+            {
+                throw new Exception($"No athlete found for {swimmerName}");
+            }
+
+            // Get the first matching link
+            var detailUrl = athleteDetailLinks[0].GetAttributeValue("href", "");
+            detailUrl = System.Net.WebUtility.HtmlDecode(detailUrl);
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Detail URL: {detailUrl}");
+            
+            if (string.IsNullOrEmpty(detailUrl))
+            {
+                throw new Exception($"Could not extract athlete URL for {swimmerName}");
+            }
+
+            // Make URL absolute if needed
+            if (!detailUrl.StartsWith("http"))
+            {
+                detailUrl = "https://www.swimrankings.net/index.php" + (detailUrl.StartsWith("?") ? detailUrl : "?" + detailUrl);
             }
 
             _progressCallback?.Invoke(25, 100, $"Found {swimmerName}, fetching details...");
@@ -245,18 +295,24 @@ public class SwimRankingsImporter : ISwimTrackImporter
             var detailHtml = await FetchWithRetry(detailUrl);
             var detailDoc = new HtmlDocument();
             detailDoc.LoadHtml(detailHtml);
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Got detail page: {detailHtml.Length} bytes");
 
-            // Extract athlete ID and add/get swimmer
+            // Extract athlete ID
             var athleteIdMatch = Regex.Match(detailUrl, @"athleteId=(\d+)");
             if (!athleteIdMatch.Success || !int.TryParse(athleteIdMatch.Groups[1].Value, out var athleteId))
             {
                 throw new Exception("Could not extract athlete ID");
             }
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Extracted athleteId: {athleteId}");
 
             // Add swimmer to database if not exists
-            var existingSwimmer = await _db.Swimmers.FirstOrDefaultAsync(s => s.DisplayName == swimmerName);
+            var existingSwimmer = await _db.Swimmers.FirstOrDefaultAsync(s => s.FirstName == firstName && s.LastName == lastName);
             if (existingSwimmer == null)
             {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Swimmer not found by FirstName='{firstName}', LastName='{lastName}'");
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Creating new swimmer...");
                 existingSwimmer = new Swimmer 
                 { 
                     FirstName = firstName,
@@ -264,12 +320,19 @@ public class SwimRankingsImporter : ISwimTrackImporter
                 };
                 _db.Swimmers.Add(existingSwimmer);
                 await _db.SaveChangesAsync();
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Created new swimmer with ID: {existingSwimmer.Id}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found existing swimmer (ID: {existingSwimmer.Id}, Name: {existingSwimmer.DisplayName})");
             }
 
             _progressCallback?.Invoke(50, 100, $"Parsing results for {swimmerName}...");
 
             // Parse personal bests for all ranking styles
             var (retrieved, newCount, existing) = await ParseAllPersonalRankings(detailDoc, athleteId, existingSwimmer.Id);
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Parsing complete: retrieved={retrieved}, newCount={newCount}, existing={existing}");
 
             _progressCallback?.Invoke(100, 100, "Import complete!");
 
@@ -277,6 +340,8 @@ public class SwimRankingsImporter : ISwimTrackImporter
         }
         catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Error in ImportSingleSwimmerAsync: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] StackTrace: {ex.StackTrace}");
             throw new Exception($"Failed to import swimmer: {ex.Message}", ex);
         }
     }
@@ -342,7 +407,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
                     if (athleteDetailLinks != null && athleteDetailLinks.Count > 0)
                     {
                         // Find the first link that contains athleteDetail
-                        HtmlNode athleteDetailLink = null;
+                        HtmlNode? athleteDetailLink = null;
                         foreach (var link in athleteDetailLinks)
                         {
                             var href = link.GetAttributeValue("href", "");
@@ -473,7 +538,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
         try
         {
             // Try multiple XPath approaches to find the ranking dropdown
-            HtmlNode selectNode = null;
+            HtmlNode? selectNode = null;
             
             // Approach 1: Look for select by name
             selectNode = doc.DocumentNode.SelectSingleNode("//select[@name='rankingStyleId']");
@@ -752,7 +817,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
 
                             // Extract date - index varies depending on table type
                             DateTime? date = null;
-                            HtmlNode dateCell = null;
+                            HtmlNode? dateCell = null;
                             string? location = null;
 
                             if (isRankingTable)
@@ -851,10 +916,12 @@ public class SwimRankingsImporter : ISwimTrackImporter
 
                         foreach (var newResult in resultsToAdd)
                         {
-                            // Match on swimmer + event + exact date; prefer SwimRankings data to enrich
+                            // Match on swimmer + event + exact date + time
+                            // Time is unique enough to distinguish multiple results on same day (heats, semis, finals all have different times)
                             var existing = existingResults.FirstOrDefault(r =>
                                 r.EventId == newResult.EventId &&
-                                r.Date == newResult.Date);
+                                r.Date == newResult.Date &&
+                                r.TimeSeconds == newResult.TimeSeconds);  // Match exact time only
 
                             if (existing == null)
                             {
@@ -866,13 +933,6 @@ public class SwimRankingsImporter : ISwimTrackImporter
                                 existingCount++;
                                 // Enrich/correct existing record using SwimRankings
                                 bool changed = false;
-
-                                // Update time if different by a small threshold (SwimRankings authoritative)
-                                if (Math.Abs(existing.TimeSeconds - newResult.TimeSeconds) > 0.001)
-                                {
-                                    existing.TimeSeconds = newResult.TimeSeconds;
-                                    changed = true;
-                                }
 
                                 // Update course if different (should match rowCourse, but correct if needed)
                                 if (existing.Course != newResult.Course)
@@ -1063,19 +1123,30 @@ public class SwimRankingsImporter : ISwimTrackImporter
     /// </summary>
     private async Task<string> FetchWithRetry(string url, int maxRetries = 3)
     {
+        System.Diagnostics.Debug.WriteLine($"[SwimRankings] FetchWithRetry: {url}");
         for (int attempt = 0; attempt < maxRetries; attempt++)
         {
             try
             {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Attempt {attempt + 1} of {maxRetries}");
                 var response = await _httpClient.GetAsync(url);
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Response status: {response.StatusCode}");
                 response.EnsureSuccessStatusCode();
-                return await response.Content.ReadAsStringAsync();
+                var content = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Received {content.Length} bytes");
+                return content;
             }
             catch (HttpRequestException ex) when (attempt < maxRetries - 1)
             {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed (attempt {attempt + 1}): {ex.Message}");
                 // Wait longer on each retry
                 await Task.Delay(1000 * (attempt + 1));
                 continue;
+            }
+            catch (HttpRequestException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed after {maxRetries} attempts: {ex.Message}");
+                throw;
             }
         }
 
