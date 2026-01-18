@@ -56,7 +56,7 @@ SwimStats is a free, easy-to-use application that helps swimming clubs track and
 - Click: **"📥 SwimTrack"** button
 
 **Option 2: SwimRankings (International)**
-- Slower (5-10 minute imports)
+- Slower (1-2 minute imports per swimmer)
 - Good for international swimmers
 - Click: **"📥 SwimRankings"** button
 - ⚠️ Don't use for bulk imports (website rate limits)
@@ -317,13 +317,14 @@ Database updated → UI refreshed with new swimmer list
 
 ### Fixed: SwimRankings Rate Limiting
 - **Problem:** Website blocks IP after rapid requests
-- **Solution:** Added 5-second delay between all requests
+- **Solution:** Added 1-second delay between all requests
 - **Impact:** Prevents IP blocking during imports
 - **Trade-off:** Slower imports (but reliable)
 
 ### Added: Request Throttling
 - **SemaphoreSlim:** Serializes HTTP requests (no parallel requests)
 - **Exponential Backoff:** Handles 429/503 responses
+- **Delay:** 1 second between requests
 - **Status:** ✅ Tested with 60+ swimmer imports
 
 ---
@@ -332,6 +333,7 @@ Database updated → UI refreshed with new swimmer list
 
 | Version   | Date       | What Changed                              |
 |-----------|------------|-------------------------------------------|
+| **v1.4** | 2026-01-18 | Reduced SwimRankings throttling (5s → 1s) |
 | **v1.3** | 2026-01-18 | Fixed SwimRankings rate limiting (5s throttling)    |
 | **v1.2** | 2026-01-18 | Chart tooltips (swimmer data only, not club stats)  |
 | **v1.1** | 2026-01-18 | JSON validation, UI guidance, auto backups          |
@@ -383,5 +385,5 @@ Database updated → UI refreshed with new swimmer list
 ---
 
 **Last Updated:** January 18, 2026  
-**Document Version:** 1.0 (Rewritten for Readability)  
+**Document Version:** 1.4  
 **Status:** ✅ Ready to Use
