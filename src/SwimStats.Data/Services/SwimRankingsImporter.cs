@@ -19,6 +19,11 @@ public class SwimRankingsImporter : ISwimTrackImporter
     private readonly SwimStatsDbContext _db;
     private readonly HttpClient _httpClient;
     private readonly Action<int, int, string>? _progressCallback;
+    
+    // Request throttling to avoid rate limiting
+    private readonly System.Threading.SemaphoreSlim _requestThrottle = new System.Threading.SemaphoreSlim(1, 1);
+    private DateTime _lastRequestTime = DateTime.MinValue;
+    private const int MIN_REQUEST_DELAY_MS = 5000; // 5 seconds between requests to avoid rate limiting
 
     public SwimRankingsImporter(SwimStatsDbContext db, Action<int, int, string>? progressCallback = null)
     {
@@ -27,6 +32,8 @@ public class SwimRankingsImporter : ISwimTrackImporter
         // Create HttpClient with automatic decompression
         var handler = new HttpClientHandler();
         handler.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+        // Keep connections alive and reuse them
+        handler.UseProxy = false;
         
         _httpClient = new HttpClient(handler);
         // Add realistic browser headers to avoid 503 errors
@@ -37,7 +44,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
         _httpClient.DefaultRequestHeaders.Add("DNT", "1");
         _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
         _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
-        _httpClient.Timeout = TimeSpan.FromSeconds(30); // Reduced from 60 to 30 seconds
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
         _progressCallback = progressCallback;
     }
 
@@ -1123,35 +1130,66 @@ public class SwimRankingsImporter : ISwimTrackImporter
     /// </summary>
     private async Task<string> FetchWithRetry(string url, int maxRetries = 3)
     {
-        System.Diagnostics.Debug.WriteLine($"[SwimRankings] FetchWithRetry: {url}");
-        for (int attempt = 0; attempt < maxRetries; attempt++)
+        // Throttle requests to avoid rate limiting
+        await _requestThrottle.WaitAsync();
+        try
         {
-            try
+            // Calculate delay since last request
+            var timeSinceLastRequest = DateTime.UtcNow - _lastRequestTime;
+            var delayNeeded = MIN_REQUEST_DELAY_MS - (int)timeSinceLastRequest.TotalMilliseconds;
+            
+            if (delayNeeded > 0)
             {
-                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Attempt {attempt + 1} of {maxRetries}");
-                var response = await _httpClient.GetAsync(url);
-                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Response status: {response.StatusCode}");
-                response.EnsureSuccessStatusCode();
-                var content = await response.Content.ReadAsStringAsync();
-                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Received {content.Length} bytes");
-                return content;
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Throttling: waiting {delayNeeded}ms before next request");
+                await Task.Delay(delayNeeded);
             }
-            catch (HttpRequestException ex) when (attempt < maxRetries - 1)
+            
+            _lastRequestTime = DateTime.UtcNow;
+            
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] FetchWithRetry: {url}");
+            for (int attempt = 0; attempt < maxRetries; attempt++)
             {
-                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed (attempt {attempt + 1}): {ex.Message}");
-                // Wait longer on each retry
-                await Task.Delay(1000 * (attempt + 1));
-                continue;
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Attempt {attempt + 1} of {maxRetries}");
+                    var response = await _httpClient.GetAsync(url);
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Response status: {response.StatusCode}");
+                    
+                    // Handle rate limiting (429) and service unavailable (503)
+                    if ((int)response.StatusCode == 429 || (int)response.StatusCode == 503)
+                    {
+                        var backoffDelay = Math.Min(1000 * (int)Math.Pow(2, attempt), 10000); // exponential backoff, max 10s
+                        System.Diagnostics.Debug.WriteLine($"[SwimRankings] Rate limited (status {response.StatusCode}), backing off {backoffDelay}ms");
+                        await Task.Delay(backoffDelay);
+                        continue;
+                    }
+                    
+                    response.EnsureSuccessStatusCode();
+                    var content = await response.Content.ReadAsStringAsync();
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Received {content.Length} bytes");
+                    return content;
+                }
+                catch (HttpRequestException ex) when (attempt < maxRetries - 1)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed (attempt {attempt + 1}): {ex.Message}");
+                    // Wait longer on each retry
+                    await Task.Delay(1000 * (attempt + 1));
+                    continue;
+                }
+                catch (HttpRequestException ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed after {maxRetries} attempts: {ex.Message}");
+                    throw;
+                }
             }
-            catch (HttpRequestException ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Request failed after {maxRetries} attempts: {ex.Message}");
-                throw;
-            }
-        }
 
-        // If we get here, all retries failed
-        throw new Exception($"Failed to fetch {url} after {maxRetries} attempts");
+            // If we get here, all retries failed
+            throw new Exception($"Failed to fetch {url} after {maxRetries} attempts");
+        }
+        finally
+        {
+            _requestThrottle.Release();
+        }
     }
 }
 

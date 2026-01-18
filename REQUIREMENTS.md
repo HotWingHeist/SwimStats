@@ -18,26 +18,33 @@ SwimStats is a swimming performance tracking and analysis application for EZPC S
 
 #### FR1.1: SwimRankings Website Import
 - **Description:** Import swimmer data and competition results from the SwimRankings website
-- **Status:** ✅ IMPLEMENTED & TESTED
+- **Status:** ✅ IMPLEMENTED & TESTED (⚠️ Rate Limiting)
 - **Implementation Details:**
   - Uses AJAX search endpoint (`internalRequest=athleteFind`) for athlete finding
   - Parses personal rankings page for race results
   - Handles re-import with duplicate detection
+  - **Anti-Scraping Protection:** Implements 5-second request throttling to comply with server rate limits
 - **Test Coverage:** 
   - Unit tests: `SwimRankingsImporterTests.cs` (2 tests)
-  - Integration test: `TestImporter` (manual test - retrieves 60+ results)
-- **Notes:** Website connectivity dependent; currently unreachable
+  - Integration test: `TestImporter` (retrieves 60+ results successfully)
+- **Limitations:** 
+  - SwimRankings has aggressive rate limiting protection
+  - Rapid requests (>5/min) trigger IP blocking for 30min-1hr
+  - Mitigation: 5-second delay between requests prevents blocking
+  - **Recommendation:** Use SwimTrack as primary source for reliable automated imports
+  - SwimRankings suitable for: Occasional manual imports, international swimmers not in SwimTrack
 
 #### FR1.2: SwimTrack Website Import
 - **Description:** Import swimmer data and competition results from the SwimTrack website
-- **Status:** ✅ IMPLEMENTED & TESTED
+- **Status:** ✅ IMPLEMENTED & TESTED (PRIMARY SOURCE)
 - **Implementation Details:**
   - Uses HTML dropdown parsing for athlete selection
   - Parses HTML results tables
   - No-update strategy (import only, don't modify existing)
+  - No rate limiting protection needed
 - **Test Coverage:**
   - Unit tests: `SwimTrackImporterTests.cs` (31 tests)
-- **Notes:** Alternative data source if SwimRankings unavailable
+- **Recommendation:** Primary data source for automated imports (no blocking, reliable)
 
 #### FR1.3: Duplicate Detection
 - **Description:** Prevent duplicate results from being imported multiple times
@@ -302,8 +309,8 @@ SwimStats is a swimming performance tracking and analysis application for EZPC S
 
 | Requirement Area | Status | Tests | Comments |
 |------------------|--------|-------|----------|
-| Import (SwimRankings) | ✅ Code OK | 2 | Website unreachable |
-| Import (SwimTrack) | ✅ | 31 | Working well |
+| Import (SwimRankings) | ✅ Working | 2 | Rate limited; use SwimTrack as primary |
+| Import (SwimTrack) | ✅ Primary | 31 | Recommended data source |
 | Duplicate Detection | ✅ | 3 | Exact match approach validated |
 | Configuration File | ✅ | Manual | Deployment ready |
 | First-Time Start | ✅ | Manual | Auto-copy working |
@@ -311,6 +318,30 @@ SwimStats is a swimming performance tracking and analysis application for EZPC S
 | Visualization | ✅ | Manual | Charts render correctly |
 | Database | ✅ | Multiple | SQLite + EF Core solid |
 | Deployment | ✅ | Manual | Self-contained build ready |
+
+---
+
+## Known Issues & Limitations
+
+### Issue 1: SwimRankings Rate Limiting (Resolved ✅)
+- **Status:** RESOLVED
+- **Details:** SwimRankings has anti-scraping protection that blocks IPs after repeated requests
+- **Impact:** Rapid imports could trigger 30min-1hr IP block
+- **Resolution:** Implemented 5-second request throttling between all HTTP requests
+- **Recommendation:** Use SwimTrack as primary data source for automated imports
+- **Alternative Use:** SwimRankings works for occasional manual imports or international swimmers
+
+### Issue 2: LINQ Translation on DisplayName (Resolved ✅)
+- **Status:** RESOLVED
+- **Details:** Entity Framework couldn't translate DisplayName computed property to SQL
+- **Impact:** Configuration reload would fail with LINQ translation error
+- **Resolution:** Materialize data with `.ToList()` before ordering
+
+### Issue 3: Floating-Point Tuple Parsing (Resolved ✅)
+- **Status:** RESOLVED
+- **Details:** Tuple values like `25.00` caused C# parsing issues in named tuples
+- **Impact:** Test compilation failed
+- **Resolution:** Changed to `25.0` format
 
 ---
 
@@ -322,20 +353,20 @@ SwimStats is a swimming performance tracking and analysis application for EZPC S
 - **Alternative Considered:** Tolerance-based (0.00001s) - rejected as too complicated
 - **Recommendation:** ✅ Current approach is sound for swimming data
 
-### Gap 1: Automated Re-import Strategy
+### Gap 1: Data Source Selection Guidance
+- **Description:** Users need guidance on which importer to use
+- **Current:** Both available, but SwimRankings has rate limiting
+- **Recommendation:** ✅ Documentation added; UI tooltips guide users
+
+### Gap 2: Automated Re-import Strategy
 - **Description:** No scheduled/automatic re-import of data
 - **Impact:** Users must manually trigger imports
 - **Recommendation:** Could add background task (out of scope for v0.1.1)
 
-### Gap 2: Configuration Validation
-- **Description:** No validation of JSON config file schema
+### Gap 3: Configuration Validation
+- **Description:** JSON config file schema validation
 - **Impact:** Invalid JSON silently returns empty list
-- **Recommendation:** Add schema validation with helpful error messages
-
-### Gap 3: Data Source Selection UI
-- **Description:** No UI to choose between SwimRankings vs SwimTrack
-- **Impact:** Both importers available via separate buttons, but no guidance
-- **Recommendation:** Add info panel explaining sources and status
+- **Status:** ✅ IMPLEMENTED (see REC1 in Implementation Updates)
 
 ### Gap 4: Partial Configuration Updates
 - **Description:** Reload always replaces entire swimmer list
@@ -528,6 +559,10 @@ var swimmerSeries = new SwimTimeSeries
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
+| v1.0 | 2026-01-18 | Initial comprehensive requirements document | AI Assistant |
+| v1.1 | 2026-01-18 | Implemented JSON validation, UI guidance, backup service | AI Assistant |
+| v1.2 | 2026-01-18 | Implemented chart tooltip priority (club stats disabled) | AI Assistant |
+| v1.3 | 2026-01-18 | Fixed SwimRankings rate limiting, added 5s throttling, documented limitation | AI Assistant |
 | v1.0 | 2026-01-18 | Initial comprehensive requirements document | AI Assistant |
 | v1.1 | 2026-01-18 | Implemented JSON validation, UI guidance, backup service | AI Assistant |
 | v1.2 | 2026-01-18 | Implemented chart tooltip priority (club stats disabled) | AI Assistant |
