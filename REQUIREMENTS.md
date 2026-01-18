@@ -90,10 +90,10 @@ SwimStats is a free, easy-to-use application that helps swimming clubs track and
 
 **Lines you'll see:**
 
-| Line Type | Meaning |
-|-----------|---------|
-| **Solid colored** | Individual swimmer's times |
-| **Dashed blue** | Club's best time (reference line) |
+| Line Type        | Meaning                        |
+|------------------|--------------------------------|
+| **Solid colored** | Individual swimmer's times         |
+| **Dashed blue**   | Club's best time (reference line)  |
 | **Dashed orange** | Club's slowest time (reference line) |
 
 **How to use it:**
@@ -155,47 +155,47 @@ SwimStats is a free, easy-to-use application that helps swimming clubs track and
 
 ## 📊 Test Status
 
-| Test Type | Count | Result |
-|-----------|-------|--------|
-| Import Tests | 31 | ✅ Passing |
-| Duplicate Detection | 3 | ✅ Passing |
-| Chart Tests | 2 | ✅ Passing |
-| Configuration | 2 | ✅ Passing |
-| **Total** | **36** | **✅ All Passing** |
+| Test Type             | Count | Result            |
+|-----------------------|-------|-------------------|
+| Import Tests        | 31    | ✅ Passing        |
+| Duplicate Detection | 3     | ✅ Passing        |
+| Chart Tests         | 2     | ✅ Passing        |
+| Configuration       | 2     | ✅ Passing        |
+| **Total**           | **36**| **✅ All Passing**|
 
 ---
 
 ## 📋 Complete Feature List
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| SwimTrack Import | ✅ | **Primary source** |
-| SwimRankings Import | ✅ | Rate limited (use SwimTrack) |
-| Duplicate Detection | ✅ | Automatic |
-| Configuration Management | ✅ | JSON file |
-| Reload Without Restart | ✅ | File menu option |
-| Interactive Chart | ✅ | Zoom & pan enabled |
-| Tooltip Hover Info | ✅ | Shows date/time/location |
-| Personal Records Table | ✅ | Sortable, filterable |
-| Multi-Swimmer Compare | ✅ | Side-by-side comparison |
-| JSON Validation | ✅ | Error messages shown |
-| Auto Backups | ✅ | Keeps 10 recent |
-| Export to CSV | ❌ | Future version |
-| Scheduled Imports | ❌ | Future version |
-| Web Version | ❌ | Planned |
+| Feature                  | Status | Notes                          |
+|--------------------------|--------|--------------------------------|
+| SwimTrack Import         | ✅ | **Primary source**              |
+| SwimRankings Import      | ✅ | Rate limited (use SwimTrack)    |
+| Duplicate Detection      | ✅ | Automatic                       |
+| Configuration Management | ✅ | JSON file                       |
+| Reload Without Restart   | ✅ | File menu option                |
+| Interactive Chart        | ✅ | Zoom & pan enabled              |
+| Tooltip Hover Info       | ✅ | Shows date/time/location        |
+| Personal Records Table   | ✅ | Sortable, filterable            |
+| Multi-Swimmer Compare    | ✅ | Side-by-side comparison         |
+| JSON Validation          | ✅ | Error messages shown            |
+| Auto Backups             | ✅ | Keeps 10 recent                 |
+| Export to CSV            | ❌ | Future version                  |
+| Scheduled Imports        | ❌ | Future version                  |
+| Web Version              | ❌ | Planned                         |
 
 ---
 
 ## 🔧 Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| **No swimmers showing** | Check `EZPCswimmers.json` exists in AppData |
-| **Import fails** | Try SwimTrack instead of SwimRankings |
-| **Chart is empty** | Select swimmers from dropdown first |
-| **JSON error on reload** | Validate JSON syntax (check quotes, brackets) |
-| **App won't start** | Delete `swimstats.db` file and restart |
-| **Configuration lost** | Restore from `%LOCALAPPDATA%\SwimStats\backups\` |
+| Problem                | Solution                                            |
+|------------------------|-----------------------------------------------------|
+| **No swimmers showing** | Check `EZPCswimmers.json` exists in AppData           |
+| **Import fails**        | Try SwimTrack instead of SwimRankings                |
+| **Chart is empty**      | Select swimmers from dropdown first                  |
+| **JSON error on reload**| Validate JSON syntax (check quotes, brackets)        |
+| **App won't start**     | Delete `swimstats.db` file and restart               |
+| **Configuration lost**  | Restore from `%LOCALAPPDATA%\SwimStats\backups\`    |
 
 ---
 
@@ -330,12 +330,12 @@ Database updated → UI refreshed with new swimmer list
 
 ## 📝 Change History
 
-| Version | Date | What Changed |
-|---------|------|--------------|
-| **v1.3** | 2026-01-18 | Fixed SwimRankings rate limiting (5s throttling) |
-| **v1.2** | 2026-01-18 | Chart tooltips (swimmer data only, not club stats) |
-| **v1.1** | 2026-01-18 | JSON validation, UI guidance, auto backups |
-| **v1.0** | 2026-01-18 | Initial release |
+| Version   | Date       | What Changed                              |
+|-----------|------------|-------------------------------------------|
+| **v1.3** | 2026-01-18 | Fixed SwimRankings rate limiting (5s throttling)    |
+| **v1.2** | 2026-01-18 | Chart tooltips (swimmer data only, not club stats)  |
+| **v1.1** | 2026-01-18 | JSON validation, UI guidance, auto backups          |
+| **v1.0** | 2026-01-18 | Initial release                                    |
 
 ---
 
