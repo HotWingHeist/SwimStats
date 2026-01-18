@@ -23,7 +23,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
     // Request throttling to avoid rate limiting
     private readonly System.Threading.SemaphoreSlim _requestThrottle = new System.Threading.SemaphoreSlim(1, 1);
     private DateTime _lastRequestTime = DateTime.MinValue;
-    private const int MIN_REQUEST_DELAY_MS = 5000; // 5 seconds between requests to avoid rate limiting
+    private const int MIN_REQUEST_DELAY_MS = 1000; // 1 second between requests (reduced for faster imports)
 
     public SwimRankingsImporter(SwimStatsDbContext db, Action<int, int, string>? progressCallback = null)
     {
