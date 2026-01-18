@@ -343,8 +343,8 @@ public partial class MainViewModel : ObservableObject
         using var scope = App.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
         
-        // Run import on background thread to prevent UI blocking
-        await Task.Run(() => ImportDataAsync(new SwimRankingsImporter(db, GetProgressCallback()), "SwimRankings", _importCancellationTokenSource.Token));
+        // Let async/await handle threading - RelayCommand will run on UI thread
+        await ImportDataAsync(new SwimRankingsImporter(db, GetProgressCallback()), "SwimRankings", _importCancellationTokenSource.Token);
     }
 
     [RelayCommand]
@@ -357,8 +357,8 @@ public partial class MainViewModel : ObservableObject
         using var scope = App.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SwimStatsDbContext>();
         
-        // Run import on background thread to prevent UI blocking
-        await Task.Run(() => ImportDataAsync(new SwimTrackImporter(db, GetProgressCallback()), "SwimTrack", _importCancellationTokenSource.Token));
+        // Let async/await handle threading - RelayCommand will run on UI thread
+        await ImportDataAsync(new SwimTrackImporter(db, GetProgressCallback()), "SwimTrack", _importCancellationTokenSource.Token);
     }
 
     private Action<int, int, string> GetProgressCallback()
