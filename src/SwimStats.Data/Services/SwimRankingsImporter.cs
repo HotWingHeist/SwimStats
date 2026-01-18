@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
     // Request throttling to avoid rate limiting
     private readonly System.Threading.SemaphoreSlim _requestThrottle = new System.Threading.SemaphoreSlim(1, 1);
     private DateTime _lastRequestTime = DateTime.MinValue;
-    private const int MIN_REQUEST_DELAY_MS = 1000; // 1 second between requests (reduced for faster imports)
+    private const int MIN_REQUEST_DELAY_MS = 2500; // 2.5 seconds between requests (safe balance)
 
     public SwimRankingsImporter(SwimStatsDbContext db, Action<int, int, string>? progressCallback = null)
     {
@@ -1190,6 +1191,45 @@ public class SwimRankingsImporter : ISwimTrackImporter
         {
             _requestThrottle.Release();
         }
+    }
+
+    /// <summary>
+    /// Fetches multiple URLs concurrently while parsing previous results in parallel.
+    /// This pipeline approach eliminates waiting - while parsing one result, the next request is already in flight.
+    /// </summary>
+    private async Task<List<(string url, string html)>> FetchMultipleUrlsConcurrentAsync(List<string> urls, int maxConcurrent = 2)
+    {
+        if (urls == null || urls.Count == 0)
+            return new List<(string, string)>();
+
+        var channel = Channel.CreateBounded<(string url, string html)>(capacity: maxConcurrent);
+        var results = new List<(string url, string html)>();
+
+        // Producer task: fetch URLs
+        var producerTask = Task.Run(async () =>
+        {
+            try
+            {
+                foreach (var url in urls)
+                {
+                    var html = await FetchWithRetry(url);
+                    await channel.Writer.WriteAsync((url, html));
+                }
+            }
+            finally
+            {
+                channel.Writer.TryComplete();
+            }
+        });
+
+        // Consumer task: collect results as they arrive
+        await foreach (var (url, html) in channel.Reader.ReadAllAsync())
+        {
+            results.Add((url, html));
+        }
+
+        await producerTask;
+        return results;
     }
 }
 
