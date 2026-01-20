@@ -18,38 +18,81 @@ namespace SwimStats.Data.Services;
 public class SwimRankingsImporter : ISwimTrackImporter
 {
     private readonly SwimStatsDbContext _db;
-    private readonly HttpClient _httpClient;
     private readonly Action<int, int, string>? _progressCallback;
+    private readonly string _clubName;
+    
+    // Performance optimization #1: Cache athlete IDs to avoid repeated searches
+    private static readonly Dictionary<string, int> _athleteIdCache = new();
+    
+    // Shared HttpClient to avoid socket exhaustion and look less suspicious to servers
+    // Static to reuse connections across instances (best practice for HttpClient)
+    private static readonly HttpClient _sharedHttpClient = CreateHttpClient();
     
     // Request throttling to avoid rate limiting
-    // Allow up to 2 concurrent requests to improve performance while respecting rate limits
-    private readonly System.Threading.SemaphoreSlim _requestThrottle = new System.Threading.SemaphoreSlim(2, 2);
+    // Performance optimization #2: Increased from 2 to 4 concurrent requests for better throughput
+    private readonly System.Threading.SemaphoreSlim _requestThrottle = new System.Threading.SemaphoreSlim(4, 4);
     private DateTime _lastRequestTime = DateTime.MinValue;
-    private const int MIN_REQUEST_DELAY_MS = 3500; // 3.5 seconds between requests (optimized with parallelism)
+    private const int MIN_REQUEST_DELAY_MS = 3000; // Reduced from 3500ms to 3000ms with higher concurrency
     private const int MIN_DELAY_AFTER_ERROR_MS = 15000; // 15 seconds after any error
     private bool _recentError = false;
+
+    private static HttpClient CreateHttpClient()
+    {
+        // Performance optimization #5: Use SocketsHttpHandler for HTTP/2 and connection pooling
+        var handler = new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            EnableMultipleHttp2Connections = true,
+            MaxConnectionsPerServer = 6,
+            UseProxy = false
+        };
+        
+        var client = new HttpClient(handler);
+        // Add realistic browser headers to avoid 503 errors
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+        client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
+        // Note: Accept-Encoding is handled by AutomaticDecompression
+        // Note: Connection header should NOT be set when using HTTP/2
+        client.DefaultRequestHeaders.Add("DNT", "1");
+        client.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
+        client.Timeout = TimeSpan.FromSeconds(30);
+        
+        return client;
+    }
 
     public SwimRankingsImporter(SwimStatsDbContext db, Action<int, int, string>? progressCallback = null)
     {
         _db = db;
-        
-        // Create HttpClient with automatic decompression
-        var handler = new HttpClientHandler();
-        handler.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-        // Keep connections alive and reuse them
-        handler.UseProxy = false;
-        
-        _httpClient = new HttpClient(handler);
-        // Add realistic browser headers to avoid 503 errors
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-        _httpClient.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
-        _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
-        _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate");
-        _httpClient.DefaultRequestHeaders.Add("DNT", "1");
-        _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
-        _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
-        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        _clubName = SwimmerConfigurationLoader.ClubName; // Get club name from configuration
         _progressCallback = progressCallback;
+    }
+
+    /// <summary>
+    /// Checks if the given text contains the configured club name or common variations.
+    /// Supports variations like "EZPC", "EZ&PC", "EZ & PC", etc.
+    /// </summary>
+    private bool ContainsClubName(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(_clubName))
+            return false;
+            
+        // Check exact match
+        if (text.Contains(_clubName, StringComparison.OrdinalIgnoreCase))
+            return true;
+            
+        // Check variations with &
+        var withAmpersand = _clubName.Replace(" ", "&");
+        if (text.Contains(withAmpersand, StringComparison.OrdinalIgnoreCase))
+            return true;
+            
+        // Check variations with " & "
+        var withSpacedAmpersand = _clubName.Replace("", " & ");
+        if (text.Contains(withSpacedAmpersand, StringComparison.OrdinalIgnoreCase))
+            return true;
+            
+        return false;
     }
 
     /// <summary>
@@ -92,7 +135,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
             {
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
                 var req = new HttpRequestMessage(HttpMethod.Head, baseUrl);
-                var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                var resp = await _sharedHttpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
                 if ((int)resp.StatusCode == 405)
                 {
                     // Method Not Allowed: server may not support HEAD; fallback to GET
@@ -118,11 +161,11 @@ public class SwimRankingsImporter : ISwimTrackImporter
             try
             {
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(7));
-                var resp = await _httpClient.GetAsync(baseUrl + "/robots.txt", HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                var resp = await _sharedHttpClient.GetAsync(baseUrl + "/robots.txt", HttpCompletionOption.ResponseHeadersRead, cts.Token);
                 if (resp.StatusCode == HttpStatusCode.NotFound)
                 {
                     // robots.txt not present; try base page headers only
-                    resp = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                    resp = await _sharedHttpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts.Token);
                 }
                 return (int)resp.StatusCode < 500;
             }
@@ -245,77 +288,119 @@ public class SwimRankingsImporter : ISwimTrackImporter
             var lastName = string.Join(" ", names.Skip(1));
             
             System.Diagnostics.Debug.WriteLine($"[SwimRankings] Parsed as firstName='{firstName}', lastName='{lastName}'");
-
-            _progressCallback?.Invoke(0, 100, $"Searching for {swimmerName}...");
             
-            // Use the internal AJAX search endpoint (same as ImportResultsAsync)
-            var internalSearchUrl = $"https://www.swimrankings.net/index.php?internalRequest=athleteFind&athlete_firstname={Uri.EscapeDataString(firstName)}&athlete_lastname={Uri.EscapeDataString(lastName)}&athlete_clubId=-1&athlete_gender=-1";
+            // Performance optimization #1: Check athlete ID cache first
+            // Include club name in cache key to handle duplicate names from different clubs
+            var cacheKey = $"{firstName.ToLowerInvariant()}_{lastName.ToLowerInvariant()}_{_clubName.ToLowerInvariant()}";
+            int athleteId;
             
-            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Searching URL: {internalSearchUrl}");
-
-            string searchHtml = "";
-            try
+            if (_athleteIdCache.TryGetValue(cacheKey, out var cachedAthleteId))
             {
-                searchHtml = await FetchWithRetry(internalSearchUrl);
-                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Got search response: {searchHtml.Length} bytes");
+                athleteId = cachedAthleteId;
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Using cached athlete ID: {athleteId}");
             }
-            catch (Exception ex)
+            else
             {
-                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Search failed: {ex.Message}");
-                throw new Exception($"Failed to search for {swimmerName} on SwimRankings: {ex.Message}", ex);
+                // Use the internal AJAX search endpoint (same as ImportResultsAsync)
+                var internalSearchUrl = $"https://www.swimrankings.net/index.php?internalRequest=athleteFind&athlete_firstname={Uri.EscapeDataString(firstName)}&athlete_lastname={Uri.EscapeDataString(lastName)}&athlete_clubId=-1&athlete_gender=-1";
+                
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Searching URL: {internalSearchUrl}");
+
+                string searchHtml = "";
+                try
+                {
+                    searchHtml = await FetchWithRetry(internalSearchUrl);
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Got search response: {searchHtml.Length} bytes");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Search failed: {ex.Message}");
+                    throw new Exception($"Failed to search for {swimmerName} on SwimRankings: {ex.Message}", ex);
+                }
+
+                if (string.IsNullOrWhiteSpace(searchHtml))
+                {
+                    throw new Exception($"No results found for {swimmerName}");
+                }
+
+                var searchDoc = new HtmlDocument();
+                searchDoc.LoadHtml(searchHtml);
+
+                // Find athlete detail links
+                var athleteDetailLinks = searchDoc.DocumentNode.SelectNodes("//a[contains(@href, 'athleteDetail')]");
+                
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found {athleteDetailLinks?.Count ?? 0} athlete detail links");
+                
+                if (athleteDetailLinks == null || athleteDetailLinks.Count == 0)
+                {
+                    throw new Exception($"No athlete found for {swimmerName}");
+                }
+
+                // If multiple swimmers found, try to filter by club name
+                HtmlNode? selectedLink = null;
+                if (athleteDetailLinks.Count > 1)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Multiple swimmers found, filtering by club {_clubName}...");
+                    
+                    foreach (var link in athleteDetailLinks)
+                    {
+                        // Get the parent row/container which should contain club information
+                        var parent = link.ParentNode;
+                        var rowText = parent?.InnerText ?? "";
+                        
+                        System.Diagnostics.Debug.WriteLine($"[SwimRankings] Checking: {rowText}");
+                        
+                        // Check if this row contains the configured club name
+                        if (ContainsClubName(rowText))
+                        {
+                            selectedLink = link;
+                            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found {_clubName} swimmer!");
+                            break;
+                        }
+                    }
+                    
+                    // If no club match found, use the first result
+                    if (selectedLink == null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SwimRankings] No {_clubName} match found, using first result");
+                        selectedLink = athleteDetailLinks[0];
+                    }
+                }
+                else
+                {
+                    selectedLink = athleteDetailLinks[0];
+                }
+
+                // Get the selected link
+                var detailUrl = selectedLink.GetAttributeValue("href", "");
+                detailUrl = System.Net.WebUtility.HtmlDecode(detailUrl);
+                
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Detail URL: {detailUrl}");
+                
+                if (string.IsNullOrEmpty(detailUrl))
+                {
+                    throw new Exception($"Could not extract athlete URL for {swimmerName}");
+                }
+
+                // Extract athlete ID from URL
+                var athleteIdMatch = Regex.Match(detailUrl, @"athleteId=(\d+)");
+                if (!athleteIdMatch.Success || !int.TryParse(athleteIdMatch.Groups[1].Value, out athleteId))
+                {
+                    throw new Exception("Could not extract athlete ID");
+                }
+                
+                // Cache the athlete ID for future imports
+                _athleteIdCache[cacheKey] = athleteId;
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Cached athlete ID: {athleteId}");
             }
-
-            if (string.IsNullOrWhiteSpace(searchHtml))
-            {
-                throw new Exception($"No results found for {swimmerName}");
-            }
-
-            var searchDoc = new HtmlDocument();
-            searchDoc.LoadHtml(searchHtml);
-
-            // Find athlete detail links
-            var athleteDetailLinks = searchDoc.DocumentNode.SelectNodes("//a[contains(@href, 'athleteDetail')]");
             
-            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found {athleteDetailLinks?.Count ?? 0} athlete detail links");
-            
-            if (athleteDetailLinks == null || athleteDetailLinks.Count == 0)
-            {
-                throw new Exception($"No athlete found for {swimmerName}");
-            }
-
-            // Get the first matching link
-            var detailUrl = athleteDetailLinks[0].GetAttributeValue("href", "");
-            detailUrl = System.Net.WebUtility.HtmlDecode(detailUrl);
-            
-            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Detail URL: {detailUrl}");
-            
-            if (string.IsNullOrEmpty(detailUrl))
-            {
-                throw new Exception($"Could not extract athlete URL for {swimmerName}");
-            }
-
-            // Make URL absolute if needed
-            if (!detailUrl.StartsWith("http"))
-            {
-                detailUrl = "https://www.swimrankings.net/index.php" + (detailUrl.StartsWith("?") ? detailUrl : "?" + detailUrl);
-            }
-
-            _progressCallback?.Invoke(25, 100, $"Found {swimmerName}, fetching details...");
-
-            // Fetch the athlete detail page
-            var detailHtml = await FetchWithRetry(detailUrl);
+            // Fetch the athlete detail page using the athlete ID
+            var detailPageUrl = $"https://www.swimrankings.net/index.php?page=athleteDetail&athleteId={athleteId}";
+            var detailHtml = await FetchWithRetry(detailPageUrl);
             var detailDoc = new HtmlDocument();
             detailDoc.LoadHtml(detailHtml);
             
             System.Diagnostics.Debug.WriteLine($"[SwimRankings] Got detail page: {detailHtml.Length} bytes");
-
-            // Extract athlete ID
-            var athleteIdMatch = Regex.Match(detailUrl, @"athleteId=(\d+)");
-            if (!athleteIdMatch.Success || !int.TryParse(athleteIdMatch.Groups[1].Value, out var athleteId))
-            {
-                throw new Exception("Could not extract athlete ID");
-            }
-            
             System.Diagnostics.Debug.WriteLine($"[SwimRankings] Extracted athleteId: {athleteId}");
 
             // Add swimmer to database if not exists
@@ -338,14 +423,10 @@ public class SwimRankingsImporter : ISwimTrackImporter
                 System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found existing swimmer (ID: {existingSwimmer.Id}, Name: {existingSwimmer.DisplayName})");
             }
 
-            _progressCallback?.Invoke(50, 100, $"Parsing results for {swimmerName}...");
-
             // Parse personal bests for all ranking styles
             var (retrieved, newCount, existing) = await ParseAllPersonalRankings(detailDoc, athleteId, existingSwimmer.Id);
             
             System.Diagnostics.Debug.WriteLine($"[SwimRankings] Parsing complete: retrieved={retrieved}, newCount={newCount}, existing={existing}");
-
-            _progressCallback?.Invoke(100, 100, "Import complete!");
 
             return (retrieved, newCount, existing);
         }
@@ -419,16 +500,45 @@ public class SwimRankingsImporter : ISwimTrackImporter
                     
                     if (athleteDetailLinks != null && athleteDetailLinks.Count > 0)
                     {
-                        // Find the first link that contains athleteDetail
+                        // Find the link that contains athleteDetail, preferring club swimmers if multiple found
                         HtmlNode? athleteDetailLink = null;
+                        
+                        // First, collect all athleteDetail links
+                        var validLinks = new List<HtmlNode>();
                         foreach (var link in athleteDetailLinks)
                         {
                             var href = link.GetAttributeValue("href", "");
                             if (href.Contains("athleteDetail"))
                             {
-                                athleteDetailLink = link;
-                                break;
+                                validLinks.Add(link);
                             }
+                        }
+                        
+                        // If multiple valid links, try to filter by configured club name
+                        if (validLinks.Count > 1)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Multiple swimmers found for {swimmer.DisplayName}, filtering by club {_clubName}...");
+                            
+                            foreach (var link in validLinks)
+                            {
+                                // Get the parent row/container which should contain club information
+                                var parent = link.ParentNode;
+                                var rowText = parent?.InnerText ?? "";
+                                
+                                // Check if this row contains the configured club name
+                                if (ContainsClubName(rowText))
+                                {
+                                    athleteDetailLink = link;
+                                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found {_clubName} swimmer for {swimmer.DisplayName}!");
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // If no club match found or only one result, use the first valid link
+                        if (athleteDetailLink == null && validLinks.Count > 0)
+                        {
+                            athleteDetailLink = validLinks[0];
                         }
                         
                         if (athleteDetailLink != null)
@@ -1173,7 +1283,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
                 try
                 {
                     System.Diagnostics.Debug.WriteLine($"[SwimRankings] Attempt {attempt + 1} of {maxRetries}");
-                    var response = await _httpClient.GetAsync(url);
+                    var response = await _sharedHttpClient.GetAsync(url);
                     System.Diagnostics.Debug.WriteLine($"[SwimRankings] Response status: {response.StatusCode}");
                     
                     // Handle rate limiting (429) and service unavailable (503)

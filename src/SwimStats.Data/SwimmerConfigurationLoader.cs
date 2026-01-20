@@ -19,8 +19,21 @@ public class SwimmerConfiguration
     public string? Name { get; set; }
 }
 
+public class ClubConfiguration
+{
+    [JsonPropertyName("clubName")]
+    public string ClubName { get; set; } = string.Empty;
+    
+    [JsonPropertyName("swimmers")]
+    public List<SwimmerConfiguration> Swimmers { get; set; } = new();
+}
+
 public static class SwimmerConfigurationLoader
 {
+    private static string _clubName = string.Empty;
+    
+    public static string ClubName => _clubName;
+    
     public static List<SwimmerConfiguration> LoadSwimmers()
     {
         try
@@ -78,33 +91,63 @@ public static class SwimmerConfigurationLoader
             {
                 var root = doc.RootElement;
                 
-                // Check that root is an array
-                if (root.ValueKind != JsonValueKind.Array)
+                // Check if root is an object (new format with clubName) or array (old format)
+                if (root.ValueKind == JsonValueKind.Object)
                 {
-                    throw new InvalidOperationException("Configuration file must contain a JSON array of swimmers at the root level. Example: [ { \"id\": 1, \"firstName\": \"John\", \"lastName\": \"Doe\" } ]");
+                    // New format: { "clubName": "EZPC", "swimmers": [...] }
+                    if (!root.TryGetProperty("clubName", out var clubNameProp))
+                    {
+                        throw new InvalidOperationException("Configuration file must contain a 'clubName' property. Example: { \"clubName\": \"EZPC\", \"swimmers\": [ { \"id\": 1, \"firstName\": \"John\", \"lastName\": \"Doe\" } ] }");
+                    }
+                    
+                    var clubNameValue = clubNameProp.GetString();
+                    if (string.IsNullOrWhiteSpace(clubNameValue))
+                    {
+                        throw new InvalidOperationException("'clubName' property cannot be empty");
+                    }
+                    
+                    _clubName = clubNameValue;
+                    System.Diagnostics.Debug.WriteLine($"[SwimStats] Loaded club name: {_clubName}");
+                    
+                    if (!root.TryGetProperty("swimmers", out var swimmersProp))
+                    {
+                        throw new InvalidOperationException("Configuration file must contain a 'swimmers' array. Example: { \"clubName\": \"EZPC\", \"swimmers\": [ { \"id\": 1, \"firstName\": \"John\", \"lastName\": \"Doe\" } ] }");
+                    }
+                    
+                    if (swimmersProp.ValueKind != JsonValueKind.Array)
+                    {
+                        throw new InvalidOperationException("'swimmers' property must be a JSON array");
+                    }
+                    
+                    // Validate swimmer array elements
+                    ValidateSwimmerArray(swimmersProp);
                 }
-
-                // Validate each element
-                int elementIndex = 0;
-                foreach (var element in root.EnumerateArray())
+                else if (root.ValueKind == JsonValueKind.Array)
                 {
-                    if (element.ValueKind != JsonValueKind.Object)
-                    {
-                        throw new InvalidOperationException($"Array element {elementIndex} is not a JSON object");
-                    }
-
-                    // Check required fields
-                    if (!element.TryGetProperty("id", out _))
-                    {
-                        throw new InvalidOperationException($"Array element {elementIndex} is missing required field 'id'");
-                    }
-
-                    elementIndex++;
+                    // Old format not supported - require clubName
+                    throw new InvalidOperationException("Old configuration format is no longer supported. Please update your configuration file to the new format with 'clubName' property. Example: { \"clubName\": \"YourClubName\", \"swimmers\": [ { \"id\": 1, \"firstName\": \"John\", \"lastName\": \"Doe\" } ] }");
+                }
+                else
+                {
+                    throw new InvalidOperationException("Configuration file must contain a JSON object with 'clubName' and 'swimmers' properties");
                 }
             }
 
             // Now deserialize with confidence
-            var result = JsonSerializer.Deserialize<List<SwimmerConfiguration>>(json) ?? new List<SwimmerConfiguration>();
+            List<SwimmerConfiguration> result;
+            
+            var clubConfig = JsonSerializer.Deserialize<ClubConfiguration>(json);
+            if (clubConfig == null)
+            {
+                throw new InvalidOperationException("Failed to deserialize configuration file");
+            }
+            
+            if (string.IsNullOrWhiteSpace(clubConfig.ClubName))
+            {
+                throw new InvalidOperationException("Club name is required in the configuration file");
+            }
+            
+            result = clubConfig.Swimmers;
             
             // Validate deserialized data
             foreach (var swimmer in result)
@@ -113,9 +156,19 @@ public static class SwimmerConfigurationLoader
                 {
                     throw new InvalidOperationException($"Swimmer ID must be a positive integer, got: {swimmer.Id}");
                 }
+                
+                if (string.IsNullOrWhiteSpace(swimmer.FirstName))
+                {
+                    throw new InvalidOperationException($"Swimmer with ID {swimmer.Id} is missing 'firstName'");
+                }
+                
+                if (string.IsNullOrWhiteSpace(swimmer.LastName))
+                {
+                    throw new InvalidOperationException($"Swimmer with ID {swimmer.Id} is missing 'lastName'");
+                }
             }
 
-            System.Diagnostics.Debug.WriteLine($"[SwimStats] Loaded {result.Count} swimmers successfully");
+            System.Diagnostics.Debug.WriteLine($"[SwimStats] Loaded {result.Count} swimmers successfully from club: {_clubName}");
             return result;
         }
         catch (JsonException jsonEx)
@@ -123,15 +176,35 @@ public static class SwimmerConfigurationLoader
             System.Diagnostics.Debug.WriteLine($"[SwimStats] JSON PARSE ERROR in {filePath}: {jsonEx.Message}");
             throw new InvalidOperationException($"Invalid JSON format in configuration file: {jsonEx.Message}\n\nPlease ensure the file contains valid JSON. Use an online JSON validator to check your file.", jsonEx);
         }
-        catch (InvalidOperationException)
+    }
+    
+    private static void ValidateSwimmerArray(JsonElement arrayElement)
+    {
+        int elementIndex = 0;
+        foreach (var element in arrayElement.EnumerateArray())
         {
-            // Re-throw validation errors as-is
-            throw;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[SwimStats] ERROR loading from {filePath}: {ex.Message}");
-            throw new InvalidOperationException($"Error loading configuration file: {ex.Message}", ex);
+            if (element.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidOperationException($"Swimmer at index {elementIndex} is not a JSON object");
+            }
+
+            // Check required fields
+            if (!element.TryGetProperty("id", out _))
+            {
+                throw new InvalidOperationException($"Swimmer at index {elementIndex} is missing required field 'id'");
+            }
+            
+            if (!element.TryGetProperty("firstName", out _))
+            {
+                throw new InvalidOperationException($"Swimmer at index {elementIndex} is missing required field 'firstName'");
+            }
+            
+            if (!element.TryGetProperty("lastName", out _))
+            {
+                throw new InvalidOperationException($"Swimmer at index {elementIndex} is missing required field 'lastName'");
+            }
+
+            elementIndex++;
         }
     }
 }
