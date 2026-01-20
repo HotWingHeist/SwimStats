@@ -46,6 +46,10 @@ class Program
             db.Database.EnsureCreated();
             Console.WriteLine($"✓ Database created at: {dbPath}\n");
 
+            // Redirect debug output to console
+            var listener = new System.Diagnostics.ConsoleTraceListener();
+            System.Diagnostics.Debug.Listeners.Add(listener);
+            
             // Create importer with progress callback
             var importer = new SwimRankingsImporter(db, (current, total, status) =>
             {

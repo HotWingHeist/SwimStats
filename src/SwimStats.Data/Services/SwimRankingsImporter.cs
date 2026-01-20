@@ -618,15 +618,20 @@ public class SwimRankingsImporter : ISwimTrackImporter
 
             if (styleIdOptions.Count == 0)
             {
+                System.Diagnostics.Debug.WriteLine($"[SwimRankings] No styleIds found in dropdown, parsing current page");
                 // If no styleIds found in dropdown, try parsing the current page
                 return await ParsePersonalRankingsDropdown(doc, swimmerId);
             }
 
+            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Found {styleIdOptions.Count} ranking styles for swimmer {swimmerId}");
+            
             // For each ranking style, fetch and parse the data
             foreach (var (styleId, eventName) in styleIdOptions)
             {
                 try
                 {
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Processing styleId {styleId}: {eventName}");
+                    
                     // Build URL with styleId parameter
                     var rankingUrl = $"https://www.swimrankings.net/index.php?page=athleteDetail&athleteId={athleteId}&styleId={styleId}";
                     
@@ -636,6 +641,8 @@ public class SwimRankingsImporter : ISwimTrackImporter
 
                     // Parse the ranking data from this specific event page
                     var (retrieved, added, existing) = await ParsePersonalRankingsDropdown(rankingDoc, swimmerId, eventName);
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] StyleId {styleId}: retrieved={retrieved}, added={added}, existing={existing}");
+                    
                     totalRetrieved += retrieved;
                     totalCount += added;
                     totalExisting += existing;
@@ -643,8 +650,9 @@ public class SwimRankingsImporter : ISwimTrackImporter
                     // Polite delay between requests
                     await Task.Delay(300);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Failed to process styleId {styleId}: {ex.Message}");
                     // Continue with next style if this one fails
                     continue;
                 }
@@ -884,8 +892,11 @@ public class SwimRankingsImporter : ISwimTrackImporter
                             var cells = row.SelectNodes(".//td");
                             if (cells == null || cells.Count < 3)
                             {
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Skipping row: not enough cells ({cells?.Count ?? 0})");
                                 continue;
                             }
+
+                            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Processing row with {cells.Count} cells, isRankingTable={isRankingTable}");
 
                             string currentEventText = eventText;
 
@@ -897,6 +908,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
                                 if (eventLink != null)
                                 {
                                     currentEventText = System.Net.WebUtility.HtmlDecode(eventLink.InnerText.Trim());
+                                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Extracted event from link: {currentEventText}");
                                 }
                             }
 
@@ -915,10 +927,12 @@ public class SwimRankingsImporter : ISwimTrackImporter
                                 {
                                     timeText = System.Net.WebUtility.HtmlDecode(timeCell.InnerText.Trim());
                                 }
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Extracted time: {timeText}");
                             }
 
                             if (string.IsNullOrWhiteSpace(currentEventText) || string.IsNullOrWhiteSpace(timeText))
                             {
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Skipping row: empty event or time");
                                 continue;
                             }
 
@@ -926,6 +940,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
                             Stroke? stroke = ExtractStroke(currentEventText);
                             if (stroke == null)
                             {
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Could not extract stroke from: {currentEventText}");
                                 continue;
                             }
 
@@ -933,15 +948,18 @@ public class SwimRankingsImporter : ISwimTrackImporter
                             var distanceMatch = Regex.Match(currentEventText, @"(\d+)\s*m(?:eter)?");
                             if (!distanceMatch.Success)
                             {
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Could not extract distance from: {currentEventText}");
                                 continue;
                             }
 
                             var distance = int.Parse(distanceMatch.Groups[1].Value);
+                            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Event: {currentEventText}, Stroke: {stroke}, Distance: {distance}m, Time: {timeText}");
 
                             // Parse time
                             var timeSeconds = ParseTime(timeText);
                             if (timeSeconds == null || timeSeconds <= 0)
                             {
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Invalid time parsed: {timeSeconds}");
                                 continue;
                             }
 
@@ -970,6 +988,7 @@ public class SwimRankingsImporter : ISwimTrackImporter
                             {
                                 var dateText = System.Net.WebUtility.HtmlDecode(dateCell.InnerText.Trim());
                                 dateText = dateText.Replace("&nbsp;", " ");
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Parsing date text: '{dateText}'");
                                 var dateMatch = Regex.Match(dateText, @"(\d{1,2})\s+(\w{3})\s+(\d{4})");
 
                                 if (dateMatch.Success)
@@ -990,19 +1009,35 @@ public class SwimRankingsImporter : ISwimTrackImporter
                                         try
                                         {
                                             date = new DateTime(year, month, day);
+                                            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Successfully parsed date: {date:yyyy-MM-dd}");
                                         }
-                                        catch
+                                        catch (Exception dateEx)
                                         {
-                                            // Invalid date, skip
+                                            // Invalid date, skip this result
+                                            System.Diagnostics.Debug.WriteLine($"[SwimRankings] Failed to create date {year}-{month}-{day}: {dateEx.Message}");
                                             continue;
                                         }
                                     }
+                                    else
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"[SwimRankings] Month '{monthStr}' not recognized");
+                                    }
+                                }
+                                else
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"[SwimRankings] Date regex did not match: '{dateText}'");
                                 }
                             }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] No date cell found in row");
+                            }
 
+                            // If date is still null after parsing, skip this result instead of using today
                             if (date == null)
                             {
-                                date = DateTime.Now;
+                                System.Diagnostics.Debug.WriteLine($"[SwimRankings] Skipping result because date could not be determined");
+                                continue;
                             }
 
                             // Find or create the event (with course information)
