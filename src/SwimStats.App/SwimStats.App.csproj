@@ -42,6 +42,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\SwimStats.Data\EZPCswimmers.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Update="Resources\Strings.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Strings.Designer.cs</LastGenOutput>
